@@ -1,0 +1,1424 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Kamera V60</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%23ffcd3c' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffcd3c'/%3E%3C/svg%3E">
+<style>
+/* Kamera V60 — antarmuka viewfinder gelap, satu aksen kuning fokus, merah untuk rekam */
+:root{
+  --bg:#050505; --fg:#f5f4ef; --muted:rgba(245,244,239,.56); --dim:rgba(245,244,239,.13);
+  --glass:rgba(14,14,16,.7); --line:rgba(255,255,255,.08);
+  --accent:#ffcd3c; --rec:#ff453a; --ok:#5fd68f; --warn:#ff9f0a;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--sans);overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+#app{position:fixed;inset:0;display:grid;grid-template-columns:100%;grid-template-rows:auto minmax(0,1fr) auto auto;
+  grid-template-areas:"top" "stage" "modes" "ctrl";
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#top{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 14px;min-height:54px}
+#top .grow{flex:1}
+#stage{grid-area:stage;position:relative;overflow:hidden}
+#vf{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;background:#0d0d0e;touch-action:none}
+#vf video,#vf canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:filter .22s}
+#vf.mirror video,#vf.mirror canvas{transform:scaleX(-1)}
+#vf.switching video,#vf.switching canvas{filter:blur(16px) brightness(.65)}
+#modes{grid-area:modes;display:flex;justify-content:center;align-items:center;gap:22px;padding:12px 0 4px}
+#ctrl{grid-area:ctrl;display:flex;align-items:center;justify-content:space-between;padding:12px 30px 20px}
+@media (orientation:landscape){
+  #app{grid-template-rows:100%;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"top stage modes ctrl"}
+  #top{flex-direction:column;padding:14px 8px;min-height:0}
+  #modes{flex-direction:column;padding:0 4px;gap:20px}
+  #ctrl{flex-direction:column-reverse;padding:22px 16px}
+}
+
+.chip{height:32px;min-width:32px;padding:0 11px;border-radius:16px;background:var(--dim);font-size:12px;font-weight:650;letter-spacing:.05em;display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip.ic{width:38px;height:38px;padding:0;border-radius:50%}
+.chip.on{background:var(--accent);color:#16130a}
+.chip.off{color:var(--muted)}
+.chip small{font-size:10px;font-weight:700}
+
+.mode{padding:6px 2px;font-size:12.5px;font-weight:650;letter-spacing:.15em;color:var(--muted);transition:color .2s}
+.mode.on{color:var(--accent)}
+.recording #modes,.recording #top>*:not(#bRes){visibility:hidden}
+
+#shutter{width:78px;height:78px;border-radius:50%;border:4px solid var(--fg);display:grid;place-items:center;flex:none}
+#shutter i{display:block;width:62px;height:62px;border-radius:50%;background:var(--fg);transition:all .22s cubic-bezier(.3,.7,.3,1)}
+#shutter:active i{transform:scale(.92)}
+.m-video #shutter i,.m-cine #shutter i{background:var(--rec)}
+.recording #shutter i{width:30px;height:30px;border-radius:7px}
+#shutter.disabled{opacity:.45}
+#thumb{width:52px;height:52px;border-radius:11px;overflow:hidden;background:#19191b;border:1.5px solid rgba(255,255,255,.22);flex:none}
+#thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.round{width:50px;height:50px;border-radius:50%;background:var(--dim);display:grid;place-items:center;flex:none}
+
+#hud{position:absolute;top:10px;left:0;right:0;display:flex;justify-content:center;gap:6px;pointer-events:none;z-index:3}
+.badge{font-size:10.5px;font-weight:750;letter-spacing:.08em;padding:3px 7px;border-radius:5px;background:rgba(0,0,0,.5);color:var(--fg);font-variant-numeric:tabular-nums}
+.badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)}
+.badge.rec{background:var(--rec);color:#fff;font-size:12px;padding:3px 9px}
+#hint{position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:12.5px;background:rgba(0,0,0,.5);padding:5px 11px;border-radius:12px;pointer-events:none;white-space:nowrap;z-index:3}
+
+#grid{position:absolute;inset:0;pointer-events:none}
+#grid::before,#grid::after{content:"";position:absolute;border:0 solid rgba(255,255,255,.32)}
+#grid::before{left:33.333%;right:33.333%;top:0;bottom:0;border-left-width:1px;border-right-width:1px}
+#grid::after{top:33.333%;bottom:33.333%;left:0;right:0;border-top-width:1px;border-bottom-width:1px}
+
+#fbox{position:absolute;width:74px;height:74px;margin:-37px 0 0 -37px;border:1.5px solid var(--accent);border-radius:4px;pointer-events:none;z-index:2}
+#fbox.pop{animation:fpop .4s cubic-bezier(.2,.8,.3,1)}
+@keyframes fpop{from{transform:scale(1.45);opacity:.15}to{transform:scale(1);opacity:1}}
+#sbox{position:absolute;border:1.6px solid var(--accent);border-radius:6px;pointer-events:none;z-index:2;transition:left .1s linear,top .1s linear,width .1s linear,height .1s linear,border-color .3s}
+#sbox.soft{border-color:rgba(255,255,255,.75);border-style:dashed}
+#count{position:absolute;inset:0;display:grid;place-items:center;font-size:110px;font-weight:200;color:#fff;text-shadow:0 2px 20px rgba(0,0,0,.5);pointer-events:none;z-index:4}
+#zpill{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:5px 12px;border-radius:14px;font-size:14px;font-weight:700;color:var(--accent);pointer-events:none;z-index:3}
+#evwrap,#fdial{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);width:min(300px,78%);background:rgba(0,0,0,.5);border-radius:14px;padding:8px 12px;display:flex;align-items:center;gap:10px;z-index:3}
+#fdial{flex-direction:column;gap:4px}
+#fLabel{font-size:15px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+#evwrap svg{flex:none;color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent);height:26px}
+#lenses{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.36);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:3}
+.lens{width:34px;height:34px;border-radius:50%;font-size:11px;font-weight:750;background:rgba(0,0,0,.4);color:var(--fg);transition:width .15s,height .15s,font-size .15s;font-variant-numeric:tabular-nums}
+.lens.on{width:42px;height:42px;font-size:13px;color:var(--accent)}
+.lens[data-optical="0"]{color:rgba(245,244,239,.75)}
+#flashov{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
+#flashov.go{animation:flash .28s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+#cineLoad{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.6);padding:10px 16px;border-radius:14px;font-size:13px;display:flex;align-items:center;gap:10px;z-index:4;white-space:nowrap}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;top:calc(66px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);max-width:min(88vw,420px);background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:9px 15px;border-radius:13px;font-size:13px;line-height:1.4;text-align:center;z-index:90;pointer-events:none}
+
+/* layar mulai */
+#start{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:radial-gradient(120% 80% at 50% 30%,#1a1915 0%,#050505 70%);padding:24px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px));touch-action:auto}
+.start-card{width:min(360px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.frame{position:relative;width:150px;height:150px;margin-bottom:6px}
+.frame i{position:absolute;width:30px;height:30px;border:0 solid var(--accent)}
+.frame i:nth-child(1){left:0;top:0;border-left-width:3px;border-top-width:3px}
+.frame i:nth-child(2){right:0;top:0;border-right-width:3px;border-top-width:3px}
+.frame i:nth-child(3){left:0;bottom:0;border-left-width:3px;border-bottom-width:3px}
+.frame i:nth-child(4){right:0;bottom:0;border-right-width:3px;border-bottom-width:3px}
+.frame b{position:absolute;inset:38px;border-radius:50%;border:2px solid rgba(255,255,255,.5)}
+.frame b::after{content:"";position:absolute;inset:26px;border-radius:50%;background:var(--accent)}
+.start-card h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.01em}
+.specs{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.specs span{font-size:11.5px;font-weight:650;letter-spacing:.04em;padding:4px 8px;border-radius:6px;background:var(--dim);color:var(--fg)}
+.btn{height:50px;padding:0 28px;border-radius:25px;background:var(--accent);color:#16130a;font-size:16px;font-weight:700;margin-top:6px}
+.btn:disabled{opacity:.5}
+.hint2{font-size:13px;line-height:1.5;color:var(--muted);margin:0;max-width:34ch}
+.hint2.err{color:#ffb4ad}
+
+/* lembar pengaturan */
+#sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;touch-action:auto}
+.card{width:min(560px,100%);max-height:88vh;overflow:auto;background:#141416;border-radius:20px 20px 0 0;padding:6px max(18px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));-webkit-user-select:text;user-select:text;touch-action:pan-y}
+.card header{position:sticky;top:0;background:#141416;display:flex;align-items:center;justify-content:space-between;padding:12px 0 8px;z-index:1}
+.card h2{margin:0;font-size:18px}
+.card h3{margin:18px 0 2px;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.link{color:var(--accent);font-weight:650;font-size:15px;padding:6px 2px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row span{min-width:0}
+.row small{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.35}
+select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9px;padding:7px 8px;font:inherit;font-size:13px;max-width:58%}
+.sw{appearance:none;-webkit-appearance:none;flex:none;width:46px;height:28px;border-radius:14px;background:#3a3a3d;position:relative;transition:background .2s;margin:0}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw:checked{background:var(--ok)}
+.sw:checked::after{transform:translateX(18px)}
+.info{font-size:13px;line-height:1.55;color:var(--fg)}
+.info div{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.info div b{font-weight:600;color:var(--muted)}
+.info div span{text-align:right}
+.note{font-size:12.5px;line-height:1.55;color:var(--muted);margin:8px 0 0}
+.ghost{margin-top:12px;height:38px;padding:0 16px;border-radius:19px;background:var(--dim);font-size:13px;font-weight:650}
+
+/* penampil galeri */
+#viewer{position:fixed;inset:0;z-index:75;background:#000;display:flex;flex-direction:column;touch-action:auto;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.vtop{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.vtop .name{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vMedia{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden}
+#vMedia img,#vMedia video{max-width:100%;max-height:100%;object-fit:contain}
+.vbar{display:flex;justify-content:space-around;align-items:center;padding:10px 8px 14px}
+.vbar button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--fg);min-width:56px}
+.vbar button.danger{color:#ff8a80}
+</style>
+</head>
+<body>
+<div id="app" class="m-photo">
+  <div id="top">
+    <button class="chip ic" id="bFlash" aria-label="Lampu kilat"></button>
+    <span class="grow"></span>
+    <button class="chip" id="bRes" aria-label="Resolusi video">4K · 30</button>
+    <button class="chip" id="bEis" aria-label="Stabilisasi EIS">EIS</button>
+    <button class="chip" id="bAp" aria-label="Bukaan sinematik">ƒ 2.8</button>
+    <button class="chip ic" id="bTimer" aria-label="Timer foto"></button>
+    <span class="grow"></span>
+    <button class="chip ic" id="bSet" aria-label="Pengaturan"></button>
+  </div>
+
+  <div id="stage">
+    <div id="vf">
+      <video id="vid" playsinline muted autoplay></video>
+      <canvas id="gl" hidden></canvas>
+      <div id="grid" hidden></div>
+      <div id="hud">
+        <span id="recT" class="badge rec" hidden>00:00</span>
+        <span id="bResB" class="badge"></span>
+        <span id="bOis" class="badge ok">OIS</span>
+        <span id="bEisB" class="badge">EIS</span>
+        <span id="bFps" class="badge" hidden></span>
+      </div>
+      <div id="hint" hidden></div>
+      <div id="sbox" hidden></div>
+      <div id="fbox" hidden></div>
+      <div id="count" hidden></div>
+      <div id="zpill" hidden>1×</div>
+      <div id="evwrap" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <input type="range" id="ev" min="-2" max="2" step="0.1" value="0" aria-label="Kompensasi eksposur">
+      </div>
+      <div id="fdial" hidden>
+        <div id="fLabel">ƒ 2.8</div>
+        <input type="range" id="fRange" min="0" max="12" step="1" value="4" aria-label="Bukaan (kedalaman blur)">
+      </div>
+      <div id="lenses"></div>
+      <div id="cineLoad" hidden><span class="spin"></span><span>Menyiapkan mode Sinematik…</span></div>
+      <div id="flashov"></div>
+    </div>
+  </div>
+
+  <div id="modes">
+    <button class="mode" data-m="cine">SINEMATIK</button>
+    <button class="mode" data-m="video">VIDEO</button>
+    <button class="mode" data-m="photo">FOTO</button>
+  </div>
+
+  <div id="ctrl">
+    <button id="thumb" aria-label="Buka galeri"><img id="thumbImg" alt="" hidden></button>
+    <button id="shutter" aria-label="Ambil foto atau rekam"><i></i></button>
+    <button id="flip" class="round" aria-label="Ganti kamera depan/belakang"></button>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<div id="start">
+  <div class="start-card">
+    <div class="frame"><i></i><i></i><i></i><i></i><b></b></div>
+    <h1>Kamera V60</h1>
+    <div class="specs"><span>0,6× · 8 MP</span><span>1× · 50 MP OIS</span><span>3× · 50 MP OIS</span></div>
+    <p class="hint2">Foto, video sampai 4K 30 fps, stabilisasi EIS, dan mode Sinematik (video potret dengan latar blur).</p>
+    <button class="btn" id="bStart">Mulai kamera</button>
+    <p class="hint2" id="startMsg">Izinkan akses kamera dan mikrofon saat diminta.</p>
+  </div>
+</div>
+
+<div id="sheet" hidden>
+  <div class="card" role="dialog" aria-label="Pengaturan">
+    <header><h2>Pengaturan</h2><button class="link" id="sClose">Selesai</button></header>
+
+    <h3>Video</h3>
+    <label class="row"><span>Resolusi &amp; fps<small>Sinematik selalu 1080p 30 fps</small></span>
+      <select id="sRes">
+        <option value="4k30">4K · 30 fps</option>
+        <option value="1080p30">1080p · 30 fps</option>
+        <option value="1080p60">1080p · 60 fps</option>
+        <option value="720p30">720p · 30 fps</option>
+      </select></label>
+    <label class="row"><span>Stabilisasi EIS<small>Koreksi goyangan memakai giroskop, gambar di-crop sedikit</small></span><input type="checkbox" class="sw" id="sEis"></label>
+    <label class="row"><span>Kekuatan EIS</span>
+      <select id="sEisStr"><option value="std">Standar (crop 9%)</option><option value="strong">Kuat (crop 14%)</option></select></label>
+    <label class="row"><span>Balik arah koreksi giroskop<small>Nyalakan hanya jika goyangan malah terasa makin besar saat EIS aktif</small></span><input type="checkbox" class="sw" id="sInv"></label>
+
+    <h3>Umum</h3>
+    <label class="row"><span>Garis bantu (grid 3×3)</span><input type="checkbox" class="sw" id="sGrid"></label>
+    <label class="row"><span>Simpan otomatis ke HP<small>Setiap foto/video langsung diunduh ke folder Download</small></span><input type="checkbox" class="sw" id="sAuto"></label>
+
+    <h3>Pemetaan lensa</h3>
+    <p class="note">Chrome memberi nama kamera seperti “camera2 0, facing back”. Jika tombol 0,6× / 1× / 3× tertukar, pilih lensa yang benar di sini.</p>
+    <div id="sLens"></div>
+    <button class="ghost" id="sRedetect">Deteksi ulang lensa</button>
+
+    <h3>Status kamera</h3>
+    <div class="info" id="sInfo"></div>
+    <p class="note">OIS adalah stabilisasi mekanis di lensa utama dan telefoto V60. Ia bekerja otomatis di dalam modul kamera; browser tidak punya tombol untuk menyalakan atau mematikannya. EIS di aplikasi ini adalah stabilisasi digital berbasis giroskop yang dihitung sendiri oleh aplikasi.</p>
+    <p class="note">Rekaman disimpan sementara di memori browser sebelum diunduh. Untuk 4K, klip di bawah ±5 menit paling aman.</p>
+  </div>
+</div>
+
+<div id="viewer" hidden>
+  <div class="vtop">
+    <button class="chip ic" id="vClose" aria-label="Tutup"></button>
+    <span class="name" id="vName"></span>
+    <span class="chip" id="vIdx">1/1</span>
+  </div>
+  <div id="vMedia"></div>
+  <div class="vbar">
+    <button id="vPrev" aria-label="Sebelumnya"></button>
+    <button id="vShare"></button>
+    <button id="vSave"></button>
+    <button id="vDel" class="danger"></button>
+    <button id="vNext" aria-label="Berikutnya"></button>
+  </div>
+</div>
+
+<canvas id="segcv" hidden></canvas>
+
+<script>
+(() => {
+'use strict';
+
+/* ======================= Konstanta ======================= */
+const $ = s => document.querySelector(s);
+const vid = $('#vid'), glc = $('#gl'), vf = $('#vf'), stage = $('#stage'), app = $('#app');
+const segCv = $('#segcv'), segCtx = segCv.getContext('2d', { willReadFrequently: false });
+
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const SEG_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+
+const RES = {
+  '4k30':    { w: 3840, h: 2160, fps: 30, br: 48e6 },
+  '1080p60': { w: 1920, h: 1080, fps: 60, br: 24e6 },
+  '1080p30': { w: 1920, h: 1080, fps: 30, br: 16e6 },
+  '720p30':  { w: 1280, h: 720,  fps: 30, br: 8e6 },
+};
+const RES_ORDER = ['4k30', '1080p30', '1080p60', '720p30'];
+// Data lensa vivo V60 (FOV diagonal dari spesifikasi resmi vivo)
+const LENS = {
+  uw:    { name: 'Ultra-wide', short: '0,6', zoom: 0.6, dfov: 120, ois: false },
+  main:  { name: 'Utama',      short: '1',   zoom: 1,   dfov: 84,  ois: true  },
+  tele:  { name: 'Telefoto',   short: '3',   zoom: 3,   dfov: 33.1, ois: true },
+  front: { name: 'Depan',      short: '',    zoom: 1,   dfov: 92,  ois: false },
+};
+const APERTURES = [1.4, 1.8, 2, 2.2, 2.8, 3.2, 4, 4.5, 5.6, 6.3, 8, 11, 16];
+const AUDIO = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, sampleRate: { ideal: 48000 } };
+
+const svg = (p, sz = 22) => `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const BOLT = '<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/>';
+const IC = {
+  flashOff: svg(BOLT + '<path d="M3 3l18 18"/>'),
+  flashOn: svg('<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z" fill="currentColor"/>'),
+  flashAuto: svg(BOLT + '<text x="16.5" y="22.5" font-size="8.5" font-weight="800" fill="currentColor" stroke="none" font-family="system-ui,sans-serif">A</text>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', 20),
+  flip: svg('<path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/><path d="M3 21v-5h5"/>'),
+  timer: svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>', 20),
+  cam: svg('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  close: svg('<path d="M6 6l12 12M18 6 6 18"/>', 20),
+  share: svg('<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>'),
+  save: svg('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 20h14"/>'),
+  trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  left: svg('<path d="M15 5l-7 7 7 7"/>', 26),
+  right: svg('<path d="M9 5l7 7-7 7"/>', 26),
+};
+
+/* ======================= Status ======================= */
+const DEF = { mode: 'photo', lens: 'main', facing: 'back', res: '4k30', eis: true, eisStrength: 'std', gyroInvert: false,
+  grid: false, autosave: true, aperture: 2.8, flash: 'off', timer: 0, lensOverride: {} };
+let S = Object.assign({}, DEF, loadJSON('kv60', {}));
+if (!RES[S.res]) S.res = '4k30';
+function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } }
+function saveS() { try { localStorage.setItem('kv60', JSON.stringify(S)); } catch {} }
+
+const R = {
+  started: false, stream: null, track: null, mic: null, caps: {}, cams: [], auto: {}, src: null,
+  zoom: 1, hwZ: 1, sw: 1, pipe: false, loopGen: 0, openGen: 0,
+  rec: null, chunks: [], recStart: 0, recTimer: 0, capStream: null, recThumb: null,
+  gallery: [], vi: -1, busy: false,
+  seg: null, segLoading: false, segReady: false, segIdx: 0, segTs: 0, segEvery: 1, segFrame: 0, segMs: 0,
+  maskF: null, mask8: null, maskW: 0, maskH: 0, subjectArea: 0, head: null,
+  f: 0, fTarget: 0, pres: 0, rad: 0, lastFrame: 0, lastZ: 1, snapWaiters: [],
+  fpsN: 0, fps: 0, fpsT: 0, warned: {}, evTimer: 0, fboxTimer: 0, toastTimer: 0,
+};
+
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmtZ = z => { const r = Math.round(z * 10) / 10; return (Number.isInteger(r) ? String(r) : r.toFixed(1)).replace('.', ','); };
+const fmtT = s => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0'); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const curRes = () => S.mode === 'cine' ? (S.res === '720p30' ? '720p30' : '1080p30') : S.res;
+
+function toast(msg, ms = 2600) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(R.toastTimer); R.toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+function toastOnce(key, msg, ms) { if (R.warned[key]) return; R.warned[key] = 1; toast(msg, ms); }
+function errMsg(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Izin kamera ditolak. Ketuk ikon di kiri alamat situs → Izin → izinkan Kamera dan Mikrofon, lalu muat ulang.';
+  if (n === 'NotReadableError' || n === 'AbortError') return 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi kamera lain, lalu coba lagi.';
+  if (n === 'NotFoundError') return 'Kamera tidak ditemukan.';
+  if (n === 'OverconstrainedError') return 'Lensa ini tidak mendukung pengaturan yang diminta.';
+  return 'Kamera gagal dibuka: ' + ((e && (e.message || n)) || 'tidak diketahui');
+}
+
+/* ======================= Giroskop untuk EIS ======================= */
+const G = {
+  ax: 0, ay: 0, az: 0, mx: 0, my: 0, mz: 0, last: 0, n: 0, ok: false, limit: 0.03, buf: [],
+  on(e) {
+    const r = e.rotationRate;
+    if (!r || r.alpha == null || r.beta == null || r.gamma == null) return;
+    const now = e.timeStamp || performance.now();
+    let dt = e.interval > 1 ? e.interval / 1000 : (e.interval || 0.016);
+    if (this.last) { const d = (now - this.last) / 1000; if (d > 0 && d < 0.25) dt = d; }
+    this.last = now;
+    const D = Math.PI / 180;
+    const wx = r.beta * D, wy = r.gamma * D, wz = r.alpha * D;          // rad/s, sumbu perangkat
+    const a = (((screen.orientation && screen.orientation.angle) ?? window.orientation) || 0) * D;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const sx = wx * ca - wy * sa, sy = wx * sa + wy * ca;                // ke sumbu layar
+    this.ax += sx * dt; this.ay += sy * dt; this.az += wz * dt;
+    let k = 1 - Math.exp(-dt / (S.eisStrength === 'strong' ? 0.8 : 0.4));
+    const lim = Math.max(0.004, this.limit);
+    const over = Math.max(Math.abs(this.ax - this.mx), Math.abs(this.ay - this.my)) / lim;
+    if (over > 0.6) k = Math.max(k, Math.min(0.5, (over - 0.6) * 0.5)); // kejar lebih cepat saat mendekati batas crop
+    this.mx += (this.ax - this.mx) * k; this.my += (this.ay - this.my) * k; this.mz += (this.az - this.mz) * k;
+    this.buf.push(now, this.ax - this.mx, this.ay - this.my, this.az - this.mz);
+    if (this.buf.length > 1600) this.buf.splice(0, this.buf.length - 1000);
+    if (!this.ok && ++this.n > 4) { this.ok = true; if (R.started) updateHUD(); }
+  },
+  at(t) {
+    const b = this.buf, n = b.length / 4;
+    if (!n) return { x: 0, y: 0, z: 0 };
+    const L = (n - 1) * 4;
+    if (t >= b[L]) return { x: b[L + 1], y: b[L + 2], z: b[L + 3] };
+    for (let i = n - 2; i >= 0; i--) {
+      const i0 = i * 4;
+      if (b[i0] <= t) {
+        const i1 = i0 + 4, u = (t - b[i0]) / Math.max(1e-6, b[i1] - b[i0]);
+        return { x: b[i0 + 1] + (b[i1 + 1] - b[i0 + 1]) * u, y: b[i0 + 2] + (b[i1 + 2] - b[i0 + 2]) * u, z: b[i0 + 3] + (b[i1 + 3] - b[i0 + 3]) * u };
+      }
+    }
+    return { x: b[1], y: b[2], z: b[3] };
+  },
+};
+const focalPx = (dfov, long) => (long / 2) / (0.8 * Math.tan(dfov * Math.PI / 360));
+
+/* ======================= Deteksi lensa ======================= */
+async function probeCams(force) {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  const key = devs.map(d => d.deviceId).join('|');
+  const cached = loadJSON('kv60cams', null);
+  if (!force && cached && cached.key === key && cached.cams && cached.cams.length) return cached.cams;
+  const cams = [];
+  for (const d of devs) {
+    const lab = d.label || '';
+    const c = { id: d.deviceId, label: lab || 'Kamera', idx: parseInt((lab.match(/camera2?\s*(\d+)/i) || [])[1] ?? '99', 10),
+      facing: /front|user|depan/i.test(lab) ? 'front' : 'back', maxW: 0, maxH: 0, zMin: 1, zMax: 1, err: false };
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId } } });
+      const t = s.getVideoTracks()[0];
+      const caps = t.getCapabilities ? t.getCapabilities() : {};
+      if (caps.facingMode && caps.facingMode.length) c.facing = caps.facingMode[0] === 'user' ? 'front' : 'back';
+      c.maxW = (caps.width && caps.width.max) || 0; c.maxH = (caps.height && caps.height.max) || 0;
+      if (caps.zoom) { c.zMin = caps.zoom.min; c.zMax = caps.zoom.max; }
+      s.getTracks().forEach(x => x.stop());
+    } catch (e) { c.err = true; }
+    cams.push(c);
+  }
+  try { localStorage.setItem('kv60cams', JSON.stringify({ key, cams })); } catch {}
+  return cams;
+}
+function autoMap(cams) {
+  const back = cams.filter(c => c.facing !== 'front' && !c.err).sort((a, b) => a.idx - b.idx);
+  const front = cams.find(c => c.facing === 'front' && !c.err);
+  const m = { main: null, uw: null, tele: null, front: front ? front.id : null };
+  if (!back.length) return m;
+  m.main = back[0].id;
+  const px = c => (c.maxW * c.maxH) || 0;
+  const rest = back.slice(1);
+  if (rest.length >= 2) {
+    const s = [...rest].sort((a, b) => px(a) - px(b));
+    m.uw = s[0].id; m.tele = s[s.length - 1].id;
+  } else if (rest.length === 1) {
+    if (px(rest[0]) && px(rest[0]) <= 13e6) m.uw = rest[0].id; else m.tele = rest[0].id;
+  }
+  return m;
+}
+function lensMap() {
+  const out = {};
+  for (const role of ['uw', 'main', 'tele', 'front']) {
+    const ov = S.lensOverride && S.lensOverride[role];
+    if (ov === 'none') out[role] = null;
+    else if (ov && R.cams.some(c => c.id === ov)) out[role] = ov;
+    else out[role] = R.auto[role] || null;
+  }
+  return out;
+}
+function sourceFor(l) {
+  const m = lensMap();
+  if (S.facing === 'front') return { id: m.front, base: 1, optical: true, lens: 'front' };
+  if (m[l]) return { id: m[l], base: 1, optical: true, lens: l };
+  if (l === 'main') return { id: null, base: 1, optical: true, lens: 'main' };
+  const main = R.cams.find(c => c.id === m.main);
+  const z = LENS[l].zoom;
+  if (z < 1) return (main && main.zMin <= z + 0.05) ? { id: m.main, base: z, optical: false, lens: l } : null;
+  return { id: m.main, base: z, optical: false, lens: l };
+}
+const sensorOf = src => !src ? 'main' : (src.optical ? src.lens : 'main');
+
+/* ======================= Kamera ======================= */
+function constraintsFor(src) {
+  let w, h, fps;
+  if (S.mode === 'photo') { w = 1920; h = 1440; fps = 30; }
+  else { const r = RES[curRes()]; w = r.w; h = r.h; fps = r.fps; }
+  const v = { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: fps } };
+  if (src && src.id) v.deviceId = { exact: src.id };
+  else v.facingMode = S.facing === 'front' ? 'user' : 'environment';
+  return v;
+}
+function stopCam() {
+  if (R.stream) R.stream.getTracks().forEach(t => t.stop());
+  R.stream = null; R.track = null;
+}
+function waitDims() {
+  return new Promise(res => {
+    if (vid.videoWidth) return res();
+    const done = () => { vid.removeEventListener('loadedmetadata', done); vid.removeEventListener('resize', done); res(); };
+    vid.addEventListener('loadedmetadata', done); vid.addEventListener('resize', done);
+    setTimeout(done, 2500);
+  });
+}
+async function openCamera() {
+  const gen = ++R.openGen;
+  vf.classList.add('switching');
+  let src = sourceFor(S.lens);
+  if (!src) { S.lens = 'main'; src = sourceFor('main'); }
+  R.src = src; R.zoom = 1; R.hwZ = 1; R.sw = 1; R.hwSet = false;
+  stopCam();
+  let stream = null;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: constraintsFor(src) }); }
+  catch (e) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: src.id ? { deviceId: { exact: src.id } } : { facingMode: S.facing === 'front' ? 'user' : 'environment' } }); }
+    catch (e2) { vf.classList.remove('switching'); toast(errMsg(e2), 5000); return; }
+  }
+  if (gen !== R.openGen) { stream.getTracks().forEach(t => t.stop()); return; }
+  R.stream = stream; R.track = stream.getVideoTracks()[0];
+  R.caps = R.track.getCapabilities ? R.track.getCapabilities() : {};
+  vf.classList.toggle('mirror', S.facing === 'front');
+  vid.srcObject = stream;
+  try { await vid.play(); } catch {}
+  await waitDims();
+  if (gen !== R.openGen) return;
+  await applyZoom();
+  if (S.mode !== 'photo') setTorch(S.flash === 'on');
+  setupEV();
+  updatePipe();
+  layout(); markLens(); updateHUD(); checkRes();
+  setTimeout(() => vf.classList.remove('switching'), 140);
+}
+function checkRes() {
+  if (S.mode === 'photo') return;
+  const want = RES[curRes()], short = Math.min(vid.videoWidth, vid.videoHeight);
+  if (short && short < Math.min(want.w, want.h) - 8) {
+    toastOnce('res-' + S.lens + curRes(), `Lensa ${LENS[sensorOf(R.src)].name.toLowerCase()} hanya memberi ${Math.max(vid.videoWidth, vid.videoHeight)}×${short} ke browser.`, 3600);
+  }
+  const fr = (R.track && R.track.getSettings().frameRate) || 0;
+  if (fr && fr < want.fps - 3) toastOnce('fps-' + S.lens + curRes(), `Kamera memberi ${Math.round(fr)} fps (diminta ${want.fps}).`, 3000);
+}
+async function applyZoom() {
+  const src = R.src || { base: 1 };
+  const want = (src.base || 1) * R.zoom;
+  let hw = 1, sw = want;
+  const z = R.caps && R.caps.zoom;
+  if (z && R.track && (z.max > 1 || z.min < 1)) {
+    hw = clamp(want, z.min, z.max);
+    if (Math.abs(hw - R.hwZ) > 0.005 || !R.hwSet) {
+      try { await R.track.applyConstraints({ advanced: [{ zoom: hw }] }); R.hwSet = true; }
+      catch { hw = R.hwZ || 1; }
+    }
+    sw = want / hw;
+  }
+  R.hwZ = hw; R.sw = Math.max(1, sw);
+}
+let zTimer = 0;
+function setZoom(z) {
+  const base = (R.src && R.src.base) || 1;
+  let max = 10 / Math.max(base, LENS[S.facing === 'front' ? 'front' : S.lens].zoom);
+  if (R.rec && !R.pipe) { const hz = R.caps.zoom; max = hz ? hz.max / base : 1; if (max <= 1) { toastOnce('zrec', 'Zoom saat merekam butuh EIS aktif (atau zoom hardware).'); return; } }
+  R.zoom = clamp(z, 1, Math.max(1, max));
+  const zp = $('#zpill'); zp.hidden = false; zp.textContent = fmtZ(totalZoom()) + '×';
+  clearTimeout(R.zpTimer); R.zpTimer = setTimeout(() => { zp.hidden = true; }, 1200);
+  markLens();
+  if (!zTimer) zTimer = setTimeout(async () => { zTimer = 0; await applyZoom(); if (!R.rec) updatePipe(); }, 60);
+}
+const totalZoom = () => (S.facing === 'front' ? 1 : LENS[S.lens].zoom) * R.zoom;
+async function setTorch(on) {
+  if (!R.track || !R.caps.torch) return;
+  try { await R.track.applyConstraints({ advanced: [{ torch: !!on }] }); } catch {}
+}
+function setupEV() {
+  const c = R.caps.exposureCompensation, ev = $('#ev');
+  if (!c) return;
+  ev.min = c.min; ev.max = c.max; ev.step = c.step || 0.1; ev.value = 0;
+}
+async function hwFocus(x, y) {
+  if (!R.track) return;
+  const c = R.caps, adv = { pointsOfInterest: [{ x: clamp(x, 0, 1), y: clamp(y, 0, 1) }] };
+  if (c.focusMode && c.focusMode.includes('continuous')) adv.focusMode = 'continuous';
+  else if (c.focusMode && c.focusMode.includes('single-shot')) adv.focusMode = 'single-shot';
+  if (c.exposureMode && c.exposureMode.includes('continuous')) adv.exposureMode = 'continuous';
+  try { await R.track.applyConstraints({ advanced: [adv] }); }
+  catch { try { await R.track.applyConstraints({ advanced: [{ pointsOfInterest: adv.pointsOfInterest }] }); } catch {} }
+}
+
+/* ======================= Pipeline WebGL (EIS + Sinematik) ======================= */
+const VS = `#version 300 es
+in vec2 aPos; out vec2 vUV;
+void main(){ vUV = vec2(aPos.x*0.5+0.5, 0.5-aPos.y*0.5); gl_Position = vec4(aPos,0.0,1.0); }`;
+// 1) perkecil frame + simpan mask orang di kanal alpha (ruang sumber)
+const FS_DOWN = `#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 o;
+uniform sampler2D uVideo; uniform sampler2D uMask; uniform vec2 uStep; uniform float uHasMask;
+void main(){
+  vec2 uv = vUV;
+  vec3 c = texture(uVideo, uv + vec2(-uStep.x,-uStep.y)).rgb + texture(uVideo, uv + vec2(uStep.x,-uStep.y)).rgb
+         + texture(uVideo, uv + vec2(-uStep.x, uStep.y)).rgb + texture(uVideo, uv + uStep).rgb;
+  float m = uHasMask > 0.5 ? texture(uMask, uv).r : 0.0;
+  o = vec4(c*0.25, m);
+}`;
+// 2) blur bokeh berbentuk cakram, berbobot mask supaya tepi orang tidak "meleber" (halo)
+const FS_BLUR = `#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 o;
+uniform sampler2D uSmall; uniform vec2 uSmallSize; uniform float uRadius; uniform float uFg; uniform float uGround;
+uniform vec2 uOff[64];
+vec2 fuv(vec2 u){ return vec2(u.x, 1.0-u.y); }
+void main(){
+  vec2 uv = vUV;
+  float r = uRadius * mix(1.0, 1.0-uGround, smoothstep(0.62, 1.0, uv.y));
+  vec2 px = r / uSmallSize;
+  vec4 acc = vec4(0.0);
+  for (int i = 0; i < 64; i++) {
+    vec4 s = texture(uSmall, fuv(uv + uOff[i]*px));
+    float w = mix(1.0 - s.a, s.a, uFg);
+    w *= w;
+    vec3 lin = s.rgb*s.rgb;
+    float l = dot(lin, vec3(0.2126,0.7152,0.0722));
+    w *= 1.0 + 5.0*smoothstep(0.45, 0.95, l);
+    acc += vec4(lin*w, w);
+  }
+  vec4 c0 = texture(uSmall, fuv(uv));
+  o = vec4(acc.w > 1e-3 ? sqrt(acc.rgb/acc.w) : c0.rgb, 1.0);
+}`;
+// 3) komposit: transformasi stabilisasi + gabung tajam/blur dengan mask yang dihaluskan mengikuti warna
+const FS_COMP = `#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 o;
+uniform sampler2D uVideo; uniform sampler2D uSmall; uniform sampler2D uBG; uniform sampler2D uFG;
+uniform vec2 uOut; uniform vec2 uSrc; uniform float uScale; uniform vec2 uRot; uniform float uInvZ; uniform vec2 uShift;
+uniform float uCine; uniform float uTb; uniform float uTf; uniform vec2 uSmallSize; uniform vec2 uEdge;
+vec2 fuv(vec2 u){ return vec2(u.x, 1.0-u.y); }
+vec2 toSrc(vec2 uv){
+  vec2 p = (uv - 0.5) * uOut;
+  p = vec2(uRot.x*p.x - uRot.y*p.y, uRot.y*p.x + uRot.x*p.y) * (uScale*uInvZ) + uShift;
+  return p / uSrc + 0.5;
+}
+float refined(vec2 s, vec3 c){
+  vec2 px = 1.0 / uSmallSize;
+  float ws = 0.0, ms = 0.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec4 n = texture(uSmall, fuv(s + vec2(float(i), float(j))*px));
+    vec3 d = n.rgb - c;
+    float w = exp(-dot(d,d)*28.0) * ((i == 0 && j == 0) ? 1.6 : 1.0);
+    ws += w; ms += w*n.a;
+  }
+  return ms / max(ws, 1e-4);
+}
+void main(){
+  vec2 s = toSrc(vUV);
+  vec3 sharp = texture(uVideo, s).rgb;
+  if (uCine < 0.5) { o = vec4(sharp, 1.0); return; }
+  float m = smoothstep(uEdge.x, uEdge.y, refined(s, sharp));
+  vec3 bg = uTb > 0.001 ? mix(sharp, texture(uBG, fuv(s)).rgb, uTb) : sharp;
+  vec3 fg = uTf > 0.001 ? mix(sharp, texture(uFG, fuv(s)).rgb, uTf) : sharp;
+  o = vec4(mix(bg, fg, m), 1.0);
+}`;
+
+const GLX = { gl: null, W: 0, H: 0, srcW: 0, srcH: 0, k: 1 };
+function mkProg(gl, fs) {
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, VS], [gl.FRAGMENT_SHADER, fs]]) {
+    const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    gl.attachShader(p, sh);
+  }
+  gl.bindAttribLocation(p, 0, 'aPos'); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u };
+}
+function mkTex(gl) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function mkFbo(gl, w, h) {
+  const t = mkTex(gl);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { t, f, w, h };
+}
+function initGL() {
+  if (GLX.gl && !GLX.gl.isContextLost()) return true;
+  const gl = glc.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+  if (!gl) { toastOnce('nogl', 'WebGL2 tidak tersedia, EIS dan Sinematik dimatikan.'); return false; }
+  try {
+    GLX.pDown = mkProg(gl, FS_DOWN); GLX.pBlur = mkProg(gl, FS_BLUR); GLX.pComp = mkProg(gl, FS_COMP);
+  } catch (e) { console.error(e); toastOnce('shader', 'Shader gagal dikompilasi: ' + e.message); return false; }
+  GLX.gl = gl;
+  const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  GLX.tVideo = mkTex(gl); GLX.tMask = mkTex(gl);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]));
+  const off = new Float32Array(128);
+  for (let i = 0; i < 64; i++) { const r = Math.sqrt((i + 0.5) / 64), a = i * 2.399963229728653; off[2 * i] = Math.cos(a) * r; off[2 * i + 1] = Math.sin(a) * r; }
+  gl.useProgram(GLX.pBlur.p); gl.uniform2fv(GLX.pBlur.u.uOff, off);
+  GLX.srcW = GLX.srcH = 0;
+  return true;
+}
+glc.addEventListener('webglcontextlost', e => { e.preventDefault(); GLX.gl = null; });
+glc.addEventListener('webglcontextrestored', () => { if (R.pipe) { initGL(); startLoop(); } });
+
+function allocSrc(W, H) {
+  const gl = GLX.gl;
+  for (const k of ['small', 'bg', 'fg']) if (GLX[k]) { gl.deleteTexture(GLX[k].t); gl.deleteFramebuffer(GLX[k].f); }
+  const k = Math.max(1, Math.max(W, H) / 480);
+  const sw = Math.max(2, Math.round(W / k)), sh = Math.max(2, Math.round(H / k));
+  GLX.small = mkFbo(gl, sw, sh); GLX.bg = mkFbo(gl, sw, sh); GLX.fg = mkFbo(gl, sw, sh);
+  GLX.k = k; GLX.srcW = W; GLX.srcH = H;
+}
+function needPipe() { return S.mode === 'cine' || (S.mode === 'video' && S.eis) || R.sw > 1.001; }
+function updatePipe() {
+  if (R.rec) { if (R.pipe) startLoop(); return; }
+  let need = needPipe();
+  if (need && !initGL()) need = false;
+  if (need && vid.videoWidth && (glc.width !== vid.videoWidth || glc.height !== vid.videoHeight)) { glc.width = vid.videoWidth; glc.height = vid.videoHeight; }
+  R.pipe = need; glc.hidden = !need;
+  if (need) startLoop();
+  if (S.mode === 'cine') ensureSeg();
+  layout();
+}
+function startLoop() {
+  const gen = ++R.loopGen;
+  const rvfc = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  const step = (now, meta) => {
+    if (gen !== R.loopGen || !R.pipe) return;
+    if (rvfc) vid.requestVideoFrameCallback(step); else requestAnimationFrame(step);
+    try { renderFrame(meta || null); } catch (e) { console.error(e); }
+  };
+  if (rvfc) vid.requestVideoFrameCallback(step); else requestAnimationFrame(step);
+}
+
+function eisTransform(meta, W, H, OW, OH) {
+  const scale = Math.min(W / OW, H / OH);
+  const on = S.eis && S.mode !== 'photo';
+  const Z = Math.max(1, R.sw) * (on ? (S.eisStrength === 'strong' ? 1.16 : 1.10) : 1);
+  let ang = 0, sx = 0, sy = 0;
+  if (on && G.ok) {
+    const t = meta && meta.captureTime ? meta.captureTime : performance.now() - 50;
+    const j = G.at(t);
+    const f = focalPx(LENS[sensorOf(R.src)].dfov, Math.max(W, H)) * (R.hwZ || 1);
+    const sg = S.gyroInvert ? -1 : 1, fr = S.facing === 'front' ? -1 : 1;
+    sx = sg * f * j.y;
+    sy = sg * fr * f * j.x;
+    ang = clamp(sg * fr * j.z, -0.04, 0.04);
+    const hw = OW / 2 * scale / Z, hh = OH / 2 * scale / Z;
+    let c = Math.cos(ang), s = Math.abs(Math.sin(ang));
+    let ex = c * hw + s * hh, ey = s * hw + c * hh;
+    if (ex > W / 2 || ey > H / 2) { ang = 0; ex = hw; ey = hh; }
+    const mx = Math.max(0, W / 2 - ex), my = Math.max(0, H / 2 - ey);
+    sx = clamp(sx, -mx, mx); sy = clamp(sy, -my, my);
+    G.limit = Math.min(mx, my) / f;
+  }
+  R.lastZ = Z / scale;
+  return { Z, ang, sx, sy, scale };
+}
+
+function renderFrame(meta) {
+  const gl = GLX.gl; if (!gl || gl.isContextLost()) return;
+  const W = vid.videoWidth, H = vid.videoHeight; if (!W || !H) return;
+  if (!R.rec && (glc.width !== W || glc.height !== H)) { glc.width = W; glc.height = H; layout(); }
+  const OW = glc.width, OH = glc.height;
+  const now = performance.now(), dt = Math.min(0.1, R.lastFrame ? (now - R.lastFrame) / 1000 : 0.033); R.lastFrame = now;
+
+  gl.bindTexture(gl.TEXTURE_2D, GLX.tVideo);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, vid);
+
+  const st = eisTransform(meta, W, H, OW, OH);
+  const cine = S.mode === 'cine' && R.segReady;
+  let tb = 0, tf = 0;
+  if (cine) {
+    if (GLX.srcW !== W || GLX.srcH !== H) allocSrc(W, H);
+    if (R.segFrame++ % R.segEvery === 0) segmentStep(W, H);
+    const e = x => 1 - Math.exp(-dt / x);
+    R.f += (R.fTarget - R.f) * e(0.16);                              // rack-focus halus
+    R.pres += ((R.subjectArea > 0.012 ? 1 : 0) - R.pres) * e(0.3);
+    const target = 0.05 * Math.max(W, H) / S.aperture / GLX.k;          // radius blur (piksel tekstur kecil)
+    R.rad += (target - R.rad) * e(0.12);
+    const rbg = R.rad * (1 - R.f) * R.pres, rfg = R.rad * R.f * R.pres;
+    passDown();
+    if (rbg > 0.35) { passBlur(GLX.bg, rbg, 0); tb = clamp((rbg - 0.35) / 1.65, 0, 1); }
+    if (rfg > 0.35) { passBlur(GLX.fg, rfg, 1); tf = clamp((rfg - 0.35) / 1.65, 0, 1); }
+  }
+  passComp(st, cine, tb, tf, W, H, OW, OH);
+
+  if (R.snapWaiters.length) { const ws = R.snapWaiters; R.snapWaiters = []; ws.forEach(fn => fn()); }
+  R.fpsN++;
+  if (now - R.fpsT > 1000) { R.fps = Math.round(R.fpsN * 1000 / (now - R.fpsT)); R.fpsN = 0; R.fpsT = now; }
+}
+function bindTex(unit, tex, loc) { const gl = GLX.gl; gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(loc, unit); }
+function passDown() {
+  const gl = GLX.gl, P = GLX.pDown, sm = GLX.small;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sm.f); gl.viewport(0, 0, sm.w, sm.h);
+  gl.useProgram(P.p);
+  bindTex(0, GLX.tVideo, P.u.uVideo); bindTex(1, GLX.tMask, P.u.uMask);
+  gl.uniform2f(P.u.uStep, 0.3 * GLX.k / GLX.srcW, 0.3 * GLX.k / GLX.srcH);
+  gl.uniform1f(P.u.uHasMask, R.maskW ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+function passBlur(target, radius, fg) {
+  const gl = GLX.gl, P = GLX.pBlur, sm = GLX.small;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, target.f); gl.viewport(0, 0, target.w, target.h);
+  gl.useProgram(P.p);
+  bindTex(0, sm.t, P.u.uSmall);
+  gl.uniform2f(P.u.uSmallSize, sm.w, sm.h);
+  gl.uniform1f(P.u.uRadius, radius); gl.uniform1f(P.u.uFg, fg); gl.uniform1f(P.u.uGround, 0.35);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+function passComp(st, cine, tb, tf, W, H, OW, OH) {
+  const gl = GLX.gl, P = GLX.pComp;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, OW, OH);
+  gl.useProgram(P.p);
+  bindTex(0, GLX.tVideo, P.u.uVideo);
+  bindTex(1, cine ? GLX.small.t : GLX.tMask, P.u.uSmall);
+  bindTex(2, cine ? GLX.bg.t : GLX.tMask, P.u.uBG);
+  bindTex(3, cine ? GLX.fg.t : GLX.tMask, P.u.uFG);
+  gl.uniform2f(P.u.uOut, OW, OH); gl.uniform2f(P.u.uSrc, W, H); gl.uniform1f(P.u.uScale, st.scale);
+  gl.uniform2f(P.u.uRot, Math.cos(st.ang), Math.sin(st.ang)); gl.uniform1f(P.u.uInvZ, 1 / st.Z); gl.uniform2f(P.u.uShift, st.sx, st.sy);
+  gl.uniform1f(P.u.uCine, cine ? 1 : 0); gl.uniform1f(P.u.uTb, tb); gl.uniform1f(P.u.uTf, tf);
+  gl.uniform2f(P.u.uSmallSize, cine ? GLX.small.w : 1, cine ? GLX.small.h : 1);
+  gl.uniform2f(P.u.uEdge, 0.3, 0.7);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* ======================= Segmentasi orang (MediaPipe) ======================= */
+async function ensureSeg() {
+  if (R.seg || R.segLoading) return;
+  R.segLoading = true; $('#cineLoad').hidden = S.mode !== 'cine'; updateShutter();
+  try {
+    const vision = await import(MP_BASE + '/vision_bundle.mjs');
+    const files = await vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
+    const opts = d => ({ baseOptions: { modelAssetPath: SEG_MODEL, delegate: d }, runningMode: 'VIDEO', outputCategoryMask: false, outputConfidenceMasks: true });
+    let seg;
+    try { seg = await vision.ImageSegmenter.createFromOptions(files, opts('GPU')); }
+    catch (e) { console.warn('GPU delegate gagal, pakai CPU', e); seg = await vision.ImageSegmenter.createFromOptions(files, opts('CPU')); }
+    const labels = (seg.getLabels && seg.getLabels()) || [];
+    R.segIdx = 0;
+    if (labels.length > 1) { const i = labels.findIndex(l => /person|selfie|foreground|human/i.test(l)); R.segIdx = i >= 0 ? i : labels.length - 1; }
+    R.seg = seg; R.segReady = true;
+  } catch (e) {
+    console.error(e);
+    toast('Model AI Sinematik gagal dimuat. Mode ini butuh internet saat pertama dibuka.', 4500);
+  } finally {
+    R.segLoading = false; $('#cineLoad').hidden = true; updateShutter();
+  }
+}
+function segmentStep(W, H) {
+  if (!R.seg) return;
+  const L = 256;
+  const sw = W >= H ? L : Math.round(L * W / H), sh = W >= H ? Math.round(L * H / W) : L;
+  if (segCv.width !== sw || segCv.height !== sh) { segCv.width = sw; segCv.height = sh; }
+  segCtx.drawImage(vid, 0, 0, sw, sh);
+  let ts = performance.now(); if (ts <= R.segTs) ts = R.segTs + 0.1; R.segTs = ts;
+  const t0 = performance.now();
+  try {
+    R.seg.segmentForVideo(segCv, ts, res => {
+      const ms = res && res.confidenceMasks;
+      if (!ms || !ms.length) return;
+      const mk = ms[Math.min(R.segIdx, ms.length - 1)];
+      processMask(mk.getAsFloat32Array(), mk.width, mk.height);
+    });
+  } catch (e) { console.warn(e); }
+  const d = performance.now() - t0;
+  R.segMs = R.segMs ? R.segMs * 0.9 + d * 0.1 : d;
+  R.segEvery = R.segMs > 22 ? 2 : 1;
+}
+function processMask(arr, w, h) {
+  const n = w * h;
+  if (!R.maskF || R.maskF.length !== n) { R.maskF = new Float32Array(arr); R.mask8 = new Uint8Array(n); }
+  const mf = R.maskF, m8 = R.mask8;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1, cnt = 0;
+  for (let i = 0; i < n; i++) {
+    const v = mf[i] = mf[i] * 0.35 + arr[i] * 0.65;     // peredam kedip antar-frame
+    m8[i] = v <= 0 ? 0 : v >= 1 ? 255 : (v * 255) | 0;
+    if (v > 0.5) { cnt++; const x = i % w, y = (i / w) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  R.maskW = w; R.maskH = h; R.subjectArea = cnt / n;
+  R.head = null;
+  if (cnt) {
+    const rows = Math.max(1, Math.round((y1 - y0 + 1) * 0.28));
+    let hx0 = w, hx1 = -1;
+    for (let y = y0; y < Math.min(h, y0 + rows); y++) { const o = y * w; for (let x = x0; x <= x1; x++) if (mf[o + x] > 0.5) { if (x < hx0) hx0 = x; if (x > hx1) hx1 = x; } }
+    if (hx1 >= hx0) { const bw = (hx1 - hx0 + 1) / w, bh = bw * w / h; R.head = { cx: (hx0 + hx1 + 1) / 2 / w, cy: y0 / h + bh * 0.55, bw, bh }; }
+  }
+  const gl = GLX.gl; if (!gl) return;
+  gl.bindTexture(gl.TEXTURE_2D, GLX.tMask);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, m8);
+}
+
+/* ======================= Foto ======================= */
+function grabFrame(maxSide) {
+  return new Promise(resolve => {
+    const draw = (src, w, h) => {
+      const s = maxSide ? Math.min(1, maxSide / Math.max(w, h)) : 1;
+      const c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      c.toBlob(b => resolve(b), 'image/jpeg', maxSide ? 0.8 : 0.95);
+    };
+    if (R.pipe && GLX.gl) {
+      let done = false;
+      R.snapWaiters.push(() => { done = true; draw(glc, glc.width, glc.height); });
+      setTimeout(() => { if (!done && vid.videoWidth) { done = true; draw(vid, vid.videoWidth, vid.videoHeight); } }, 900);
+    } else if (vid.videoWidth) draw(vid, vid.videoWidth, vid.videoHeight);
+    else resolve(null);
+  });
+}
+async function takeFull() {
+  if (!('ImageCapture' in window) || !R.track) return null;
+  const ic = new ImageCapture(R.track);
+  const opt = {};
+  try {
+    const pc = await ic.getPhotoCapabilities();
+    if (pc.imageWidth && pc.imageWidth.max) { opt.imageWidth = pc.imageWidth.max; opt.imageHeight = pc.imageHeight.max; }
+    if (pc.fillLightMode && pc.fillLightMode.includes(S.flash)) opt.fillLightMode = S.flash;
+  } catch {}
+  return await ic.takePhoto(opt);
+}
+async function cropCenter(blob, z) {
+  let bmp;
+  try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch { bmp = await createImageBitmap(blob); }
+  const w = Math.round(bmp.width / z), h = Math.round(bmp.height / z);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(bmp, (bmp.width - w) / 2, (bmp.height - h) / 2, w, h, 0, 0, w, h);
+  return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95));
+}
+function countdown(n) {
+  return new Promise(res => {
+    const el = $('#count'); el.hidden = false;
+    const tick = () => { if (n <= 0) { el.hidden = true; return res(); } el.textContent = n--; setTimeout(tick, 1000); };
+    tick();
+  });
+}
+function flashFx() { const f = $('#flashov'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+async function shootPhoto() {
+  if (R.busy) return; R.busy = true; updateShutter();
+  try {
+    if (S.timer) await countdown(S.timer);
+    flashFx();
+    let blob = null;
+    if (!R.pipe || R.sw > 1.001) { try { blob = await takeFull(); } catch (e) { console.warn('takePhoto gagal', e); } }
+    if (blob && R.sw > 1.001) blob = await cropCenter(blob, R.sw);
+    if (!blob) blob = await grabFrame(0);
+    if (!blob) { toast('Foto gagal diambil.'); return; }
+    const thumb = await grabFrame(240);
+    addMedia(blob, 'photo', 'jpg', thumb);
+  } finally { R.busy = false; updateShutter(); }
+}
+async function snapDuringRec() { flashFx(); const b = await grabFrame(0); if (b) addMedia(b, 'photo', 'jpg', await grabFrame(240)); }
+
+/* ======================= Rekam video ======================= */
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  const list = ['video/mp4;codecs="avc1.640033,mp4a.40.2"', 'video/mp4;codecs=avc1.640033,mp4a.40.2', 'video/mp4;codecs="avc1,mp4a.40.2"',
+    'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  for (const m of list) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
+  return '';
+}
+async function ensureMic() {
+  if (R.mic && R.mic.readyState === 'live') return;
+  try { const s = await navigator.mediaDevices.getUserMedia({ audio: AUDIO }); R.mic = s.getAudioTracks()[0]; } catch { R.mic = null; }
+}
+async function startRecording() {
+  if (R.rec || !R.track) return;
+  if (S.mode === 'cine' && !R.segReady) { toast('Mode Sinematik masih disiapkan…'); return; }
+  const mime = pickMime();
+  if (mime === null) { toast('Browser ini tidak mendukung perekaman video.'); return; }
+  await ensureMic();
+  const r = RES[curRes()];
+  let vtrack;
+  if (R.pipe) { R.capStream = glc.captureStream(r.fps); vtrack = R.capStream.getVideoTracks()[0]; }
+  else vtrack = R.track;
+  const tracks = [vtrack]; if (R.mic) tracks.push(R.mic);
+  const opts = { videoBitsPerSecond: r.br, audioBitsPerSecond: 192000 };
+  if (mime) opts.mimeType = mime;
+  let rec;
+  try { rec = new MediaRecorder(new MediaStream(tracks), opts); }
+  catch { delete opts.mimeType; try { rec = new MediaRecorder(new MediaStream(tracks), opts); } catch (e) { toast('Perekam gagal dimulai: ' + e.message); return; } }
+  R.chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) R.chunks.push(e.data); };
+  rec.onstop = finishRecording;
+  rec.onerror = e => toast('Perekaman error: ' + ((e.error && e.error.message) || 'tidak diketahui'));
+  rec.start(1000);
+  R.rec = rec; R.recStart = performance.now();
+  app.classList.add('recording');
+  try { const t = screen.orientation.type; await screen.orientation.lock(t); } catch {}
+  $('#recT').hidden = false; $('#recT').textContent = '00:00';
+  R.recTimer = setInterval(() => {
+    $('#recT').textContent = fmtT((performance.now() - R.recStart) / 1000);
+    const fb = $('#bFps'); fb.hidden = !R.pipe; if (R.pipe) { fb.textContent = R.fps + ' fps'; fb.className = 'badge ' + (R.fps < r.fps - 4 ? 'warn' : ''); }
+  }, 250);
+  $('#flip').innerHTML = IC.cam; $('#flip').setAttribute('aria-label', 'Ambil foto saat merekam');
+  updateHUD();
+}
+async function stopRecording() {
+  if (!R.rec || R.rec.state === 'inactive') return;
+  R.recThumb = grabFrame(240);
+  R.rec.stop();
+}
+async function finishRecording() {
+  const rec = R.rec;
+  clearInterval(R.recTimer);
+  const type = ((rec && rec.mimeType) || 'video/webm').split(';')[0];
+  const blob = new Blob(R.chunks, { type });
+  R.chunks = [];
+  if (R.capStream) { R.capStream.getTracks().forEach(t => t.stop()); R.capStream = null; }
+  R.rec = null;
+  app.classList.remove('recording');
+  try { screen.orientation.unlock(); } catch {}
+  $('#recT').hidden = true; $('#bFps').hidden = true;
+  $('#flip').innerHTML = IC.flip; $('#flip').setAttribute('aria-label', 'Ganti kamera depan/belakang');
+  const thumb = R.recThumb ? await R.recThumb : null; R.recThumb = null;
+  if (blob.size) addMedia(blob, 'video', type.includes('mp4') ? 'mp4' : 'webm', thumb);
+  else toast('Rekaman kosong, coba lagi.');
+  updatePipe(); updateHUD();
+}
+
+/* ======================= Galeri ======================= */
+function stamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+function addMedia(blob, kind, ext, thumb) {
+  let name = (kind === 'video' ? 'VID_' : 'IMG_') + stamp();
+  if (R.gallery.some(g => g.name.startsWith(name))) name += '_' + R.gallery.length;
+  const item = { blob, kind, name: name + '.' + ext, url: URL.createObjectURL(blob), thumb: thumb ? URL.createObjectURL(thumb) : null, saved: false };
+  R.gallery.push(item);
+  const ti = $('#thumbImg'); ti.src = item.thumb || (kind === 'photo' ? item.url : ''); ti.hidden = !ti.src;
+  if (S.autosave) download(item);
+}
+function download(item) {
+  const a = document.createElement('a'); a.href = item.url; a.download = item.name;
+  document.body.appendChild(a); a.click(); a.remove(); item.saved = true;
+}
+async function shareItem(item) {
+  const file = new File([item.blob], item.name, { type: item.blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: item.name }); } catch {} }
+  else toast('Berbagi file tidak didukung di sini. Pakai tombol Simpan.');
+}
+function openViewer(i) {
+  if (!R.gallery.length) { toast('Belum ada foto atau video di sesi ini.'); return; }
+  R.vi = clamp(i, 0, R.gallery.length - 1); R.delArm = false;
+  $('#viewer').hidden = false; renderViewer();
+}
+function renderViewer() {
+  const it = R.gallery[R.vi], box = $('#vMedia');
+  box.innerHTML = '';
+  if (!it) { $('#viewer').hidden = true; return; }
+  const el = document.createElement(it.kind === 'video' ? 'video' : 'img');
+  el.src = it.url;
+  if (it.kind === 'video') { el.controls = true; el.playsInline = true; el.preload = 'metadata'; }
+  box.appendChild(el);
+  $('#vName').textContent = it.name + (it.saved ? ' · tersimpan' : '');
+  $('#vIdx').textContent = (R.vi + 1) + '/' + R.gallery.length;
+  $('#vDel').innerHTML = IC.trash + '<span>' + (R.delArm ? 'Yakin hapus?' : 'Hapus') + '</span>';
+}
+function closeViewer() { $('#viewer').hidden = true; $('#vMedia').innerHTML = ''; }
+
+/* ======================= UI ======================= */
+function layout() {
+  const r = stage.getBoundingClientRect();
+  let aw, ah;
+  if (R.pipe && glc.width > 2) { aw = glc.width; ah = glc.height; }
+  else if (vid.videoWidth) { aw = vid.videoWidth; ah = vid.videoHeight; }
+  else { const land = r.width > r.height; aw = land ? 4 : 3; ah = land ? 3 : 4; }
+  const a = aw / ah;
+  let w = r.width, h = w / a;
+  if (h > r.height) { h = r.height; w = h * a; }
+  Object.assign(vf.style, { width: w + 'px', height: h + 'px', left: (r.width - w) / 2 + 'px', top: (r.height - h) / 2 + 'px' });
+}
+function buildLenses() {
+  const box = $('#lenses'); box.innerHTML = '';
+  if (S.facing === 'front') { box.hidden = true; return; }
+  box.hidden = false;
+  for (const l of ['uw', 'main', 'tele']) {
+    const src = sourceFor(l); if (!src) continue;
+    const b = document.createElement('button');
+    b.className = 'lens'; b.dataset.l = l; b.dataset.optical = src.optical ? '1' : '0';
+    b.setAttribute('aria-label', LENS[l].name + (src.optical ? '' : ' (zoom digital)'));
+    b.addEventListener('click', e => { e.stopPropagation(); selectLens(l); });
+    box.appendChild(b);
+  }
+  markLens();
+}
+function markLens() {
+  for (const b of document.querySelectorAll('.lens')) {
+    const on = b.dataset.l === S.lens;
+    b.classList.toggle('on', on);
+    b.textContent = on ? fmtZ(totalZoom()) + '×' : LENS[b.dataset.l].short;
+  }
+}
+async function selectLens(l) {
+  if (l === S.lens) { if (R.zoom !== 1) { setZoom(1); } return; }
+  if (R.rec && !R.pipe) { toast('Ganti lensa sebelum merekam, atau aktifkan EIS agar bisa ganti lensa saat merekam.'); return; }
+  S.lens = l; saveS();
+  const src = sourceFor(l);
+  if (src && !src.optical) toastOnce('emu-' + l, `${LENS[l].name} tidak dibuka vivo untuk browser, dipakai zoom ${LENS[l].zoom < 1 ? 'hardware' : 'digital'} dari lensa utama.`, 3800);
+  markLens();
+  await openCamera();
+}
+function setMode(m) {
+  if (R.rec || m === S.mode) return;
+  const before = JSON.stringify(constraintsFor(R.src));
+  S.mode = m; saveS();
+  if (m !== 'photo' && S.flash === 'auto') S.flash = 'off';
+  if (m === 'photo') setTorch(false);
+  applyModeUI();
+  if (JSON.stringify(constraintsFor(R.src)) !== before) openCamera();
+  else { if (m !== 'photo') setTorch(S.flash === 'on'); updatePipe(); updateHUD(); }
+}
+function applyModeUI() {
+  app.classList.remove('m-photo', 'm-video', 'm-cine'); app.classList.add('m-' + S.mode);
+  for (const b of document.querySelectorAll('.mode')) b.classList.toggle('on', b.dataset.m === S.mode);
+  $('#bRes').hidden = S.mode === 'photo';
+  $('#bEis').hidden = S.mode === 'photo';
+  $('#bAp').hidden = S.mode !== 'cine';
+  $('#bTimer').hidden = S.mode !== 'photo';
+  $('#fdial').hidden = true;
+  $('#grid').hidden = !S.grid;
+  $('#cineLoad').hidden = !(S.mode === 'cine' && R.segLoading);
+  if (S.mode !== 'cine') { $('#sbox').hidden = true; $('#hint').hidden = true; }
+  renderChips(); updateShutter();
+}
+function renderChips() {
+  const fl = $('#bFlash');
+  fl.innerHTML = S.flash === 'on' ? IC.flashOn : S.flash === 'auto' ? IC.flashAuto : IC.flashOff;
+  fl.classList.toggle('on', S.flash === 'on');
+  const short = Math.min(vid.videoWidth, vid.videoHeight);
+  const r = RES[curRes()];
+  let label = curRes() === '4k30' ? '4K' : curRes() === '720p30' ? '720p' : 'HD';
+  if (short && R.track && S.mode !== 'photo') label = short >= 2100 ? '4K' : short >= 1060 ? 'HD' : short >= 700 ? '720p' : short + 'p';
+  $('#bRes').textContent = label + ' · ' + r.fps;
+  const be = $('#bEis'); be.textContent = 'EIS'; be.classList.toggle('on', !!S.eis); be.classList.toggle('off', !S.eis);
+  $('#bAp').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
+  $('#bTimer').innerHTML = IC.timer + (S.timer ? `<small>${S.timer}</small>` : '');
+  $('#bTimer').classList.toggle('ic', !S.timer);
+  $('#bTimer').classList.toggle('on', !!S.timer);
+}
+function updateHUD() {
+  renderChips();
+  const s = R.track ? R.track.getSettings() : {};
+  const w = vid.videoWidth, h = vid.videoHeight;
+  const rb = $('#bResB');
+  rb.hidden = !w || !!R.rec || S.mode === 'photo';
+  if (w) rb.textContent = `${Math.max(w, h)}×${Math.min(w, h)}` + (s.frameRate ? ` · ${Math.round(s.frameRate)}` : '');
+  const ois = LENS[sensorOf(R.src)].ois;
+  $('#bOis').hidden = !ois;
+  const eb = $('#bEisB');
+  eb.hidden = S.mode === 'photo' || !S.eis;
+  eb.className = 'badge ' + (G.ok ? 'ok' : 'warn');
+  eb.textContent = G.ok ? 'EIS' : 'EIS · tanpa gyro';
+}
+function updateShutter() {
+  const dis = R.busy || (S.mode === 'cine' && !R.segReady);
+  $('#shutter').classList.toggle('disabled', dis);
+}
+function showFocus(px, py, keep) {
+  const fb = $('#fbox');
+  fb.style.left = px + 'px'; fb.style.top = py + 'px';
+  fb.hidden = false; fb.classList.remove('pop'); void fb.offsetWidth; fb.classList.add('pop');
+  clearTimeout(R.fboxTimer);
+  if (!keep) R.fboxTimer = setTimeout(() => { fb.hidden = true; }, 2200);
+}
+function onTap(px, py) {
+  const vw = vf.clientWidth, vh = vf.clientHeight;
+  let u = px / vw, v = py / vh;
+  if (S.facing === 'front') u = 1 - u;
+  const Z = R.pipe ? (R.lastZ || 1) : 1;
+  const sx = 0.5 + (u - 0.5) / Z, sy = 0.5 + (v - 0.5) / Z;
+  hwFocus(sx, sy);
+  $('#fdial').hidden = true;
+  if (S.mode === 'cine' && R.segReady) {
+    let val = 0;
+    if (R.maskF) { const x = clamp(Math.floor(sx * R.maskW), 0, R.maskW - 1), y = clamp(Math.floor(sy * R.maskH), 0, R.maskH - 1); val = R.maskF[y * R.maskW + x]; }
+    R.fTarget = val > 0.45 ? 0 : 1;
+    if (R.fTarget === 1) showFocus(px, py, true); else $('#fbox').hidden = true;
+    return;
+  }
+  showFocus(px, py, false);
+  if (R.caps.exposureCompensation) {
+    $('#evwrap').hidden = false;
+    clearTimeout(R.evTimer); R.evTimer = setTimeout(() => { $('#evwrap').hidden = true; }, 3500);
+  }
+}
+function uiLoop() {
+  requestAnimationFrame(uiLoop);
+  const sb = $('#sbox'), hint = $('#hint');
+  if (S.mode !== 'cine' || !R.segReady) { sb.hidden = true; hint.hidden = true; return; }
+  const hd = R.head;
+  if (hd && R.pres > 0.4) {
+    const vw = vf.clientWidth, vh = vf.clientHeight, Z = R.lastZ || 1;
+    let u = 0.5 + (hd.cx - 0.5) * Z; const v = 0.5 + (hd.cy - 0.5) * Z;
+    if (S.facing === 'front') u = 1 - u;
+    const bw = hd.bw * Z * vw * 1.25, bh = hd.bh * Z * vh * 1.25;
+    Object.assign(sb.style, { left: (u * vw - bw / 2) + 'px', top: (v * vh - bh / 2) + 'px', width: bw + 'px', height: bh + 'px' });
+    sb.classList.toggle('soft', R.fTarget === 1);
+    sb.hidden = false;
+  } else sb.hidden = true;
+  const noSub = R.pres < 0.15;
+  hint.hidden = !noSub;
+  if (noSub) hint.textContent = 'Arahkan kamera ke orang untuk efek blur latar';
+}
+
+/* ======================= Pengaturan ======================= */
+function camName(c) { return `${c.label}${c.maxW ? ` · ${c.maxW}×${c.maxH}` : ''}`; }
+function buildLensSettings() {
+  const box = $('#sLens'); box.innerHTML = '';
+  const roles = [['uw', 'Ultra-wide 0,6×'], ['main', 'Utama 1×'], ['tele', 'Telefoto 3×'], ['front', 'Depan']];
+  const ov = S.lensOverride || {};
+  for (const [role, label] of roles) {
+    const row = document.createElement('label'); row.className = 'row';
+    const sp = document.createElement('span'); sp.textContent = label;
+    const sel = document.createElement('select'); sel.id = 'map-' + role;
+    const autoCam = R.cams.find(c => c.id === R.auto[role]);
+    let html = `<option value="">Otomatis${autoCam ? ' (' + esc(autoCam.label) + ')' : ' (tidak ada)'}</option>`;
+    if (role === 'uw' || role === 'tele') html += '<option value="none">Pakai zoom dari lensa utama</option>';
+    for (const c of R.cams.filter(c => (role === 'front') === (c.facing === 'front'))) html += `<option value="${esc(c.id)}">${esc(camName(c))}</option>`;
+    sel.innerHTML = html;
+    sel.value = ov[role] || '';
+    sel.addEventListener('change', () => {
+      S.lensOverride = Object.assign({}, S.lensOverride, { [role]: sel.value || undefined });
+      if (!sel.value) delete S.lensOverride[role];
+      saveS(); buildLenses();
+      if (!R.rec) openCamera();
+    });
+    row.append(sp, sel); box.appendChild(row);
+  }
+}
+function fillInfo() {
+  const s = R.track ? R.track.getSettings() : {};
+  const src = R.src || {};
+  const mime = pickMime();
+  const z = R.caps.zoom;
+  const rows = [
+    ['Lensa aktif', `${LENS[S.facing === 'front' ? 'front' : S.lens].name}${src.optical === false ? ' (emulasi zoom)' : ''}`],
+    ['Kamera Chrome', esc((R.cams.find(c => c.id === s.deviceId) || {}).label || '—')],
+    ['Resolusi aktual', vid.videoWidth ? `${Math.max(vid.videoWidth, vid.videoHeight)}×${Math.min(vid.videoWidth, vid.videoHeight)} @ ${Math.round(s.frameRate || 0)} fps` : '—'],
+    ['Zoom hardware', z ? `ya (${fmtZ(z.min)}–${fmtZ(z.max)}×)` : 'tidak'],
+    ['Format rekaman', mime ? esc(mime.split(';')[0]) + (mime.includes('avc1') || mime.includes('h264') ? ' · H.264' : '') : (mime === '' ? 'bawaan browser' : 'tidak didukung')],
+    ['OIS', LENS[sensorOf(R.src)].ois ? 'hardware di lensa ini (otomatis)' : 'lensa ini tanpa OIS'],
+    ['EIS (gyro)', G.ok ? 'giroskop aktif' : 'giroskop belum terdeteksi'],
+    ['Lensa terdeteksi', R.cams.length + ' kamera (' + R.cams.filter(c => c.facing !== 'front').length + ' belakang)'],
+    ['Mode Sinematik', R.segReady ? `siap · AI ${Math.round(R.segMs)} ms/frame` : (R.segLoading ? 'memuat…' : 'belum dimuat')],
+  ];
+  $('#sInfo').innerHTML = rows.map(([k, v]) => `<div><b>${k}</b><span>${v}</span></div>`).join('');
+}
+function openSheet() {
+  $('#sRes').value = S.res; $('#sEis').checked = !!S.eis; $('#sEisStr').value = S.eisStrength;
+  $('#sInv').checked = !!S.gyroInvert; $('#sGrid').checked = !!S.grid; $('#sAuto').checked = !!S.autosave;
+  buildLensSettings(); fillInfo();
+  $('#sheet').hidden = false;
+}
+
+/* ======================= Event ======================= */
+$('#bSet').innerHTML = IC.gear;
+$('#flip').innerHTML = IC.flip;
+$('#vClose').innerHTML = IC.close;
+$('#vPrev').innerHTML = IC.left; $('#vNext').innerHTML = IC.right;
+$('#vShare').innerHTML = IC.share + '<span>Bagikan</span>';
+$('#vSave').innerHTML = IC.save + '<span>Simpan</span>';
+
+$('#shutter').addEventListener('click', () => {
+  if (!R.started) return;
+  if (S.mode === 'photo') { shootPhoto(); return; }
+  if (S.mode === 'cine' && !R.segReady) { toast(R.segLoading ? 'Mode Sinematik masih disiapkan…' : 'Model AI belum termuat. Periksa internet lalu buka ulang mode Sinematik.'); if (!R.segLoading) ensureSeg(); return; }
+  if (R.rec) stopRecording(); else startRecording();
+});
+$('#flip').addEventListener('click', () => {
+  if (R.rec) { snapDuringRec(); return; }
+  if (!lensMap().front && !R.cams.some(c => c.facing === 'front')) { toast('Kamera depan tidak ditemukan.'); return; }
+  S.facing = S.facing === 'front' ? 'back' : 'front'; saveS();
+  buildLenses(); openCamera();
+});
+$('#thumb').addEventListener('click', () => openViewer(R.gallery.length - 1));
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+$('#bFlash').addEventListener('click', () => {
+  if (S.mode === 'photo') S.flash = S.flash === 'off' ? 'auto' : S.flash === 'auto' ? 'on' : 'off';
+  else { S.flash = S.flash === 'on' ? 'off' : 'on'; setTorch(S.flash === 'on'); if (!R.caps.torch && S.flash === 'on') toast('Lampu senter tidak tersedia di lensa ini.'); }
+  saveS(); renderChips();
+});
+$('#bRes').addEventListener('click', () => {
+  if (R.rec) return;
+  if (S.mode === 'cine') { toast('Sinematik direkam 1080p 30 fps agar efek blur tetap lancar.'); return; }
+  S.res = RES_ORDER[(RES_ORDER.indexOf(S.res) + 1) % RES_ORDER.length]; saveS();
+  renderChips(); openCamera();
+  if (S.res === '4k30' && S.eis) toastOnce('4keis', 'EIS di 4K cukup berat. Jika fps turun, pakai 1080p.', 3000);
+});
+$('#bEis').addEventListener('click', () => {
+  if (R.rec) return;
+  S.eis = !S.eis; saveS();
+  if (S.eis && !G.ok) toast('Giroskop belum terdeteksi. Gerakkan HP sedikit.');
+  else toast(S.eis ? 'EIS aktif · gambar di-crop sedikit' : 'EIS mati · hanya OIS hardware', 1800);
+  updatePipe(); updateHUD();
+});
+$('#bAp').addEventListener('click', () => {
+  const d = $('#fdial'); d.hidden = !d.hidden; $('#evwrap').hidden = true;
+  $('#fRange').value = Math.max(0, APERTURES.indexOf(S.aperture));
+  $('#fLabel').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
+});
+$('#fRange').addEventListener('input', e => {
+  S.aperture = APERTURES[+e.target.value] || 2.8; saveS();
+  $('#fLabel').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
+  renderChips();
+});
+$('#bTimer').addEventListener('click', () => { S.timer = S.timer === 0 ? 3 : S.timer === 3 ? 10 : 0; saveS(); renderChips(); toast(S.timer ? `Timer ${S.timer} detik` : 'Timer mati', 1200); });
+$('#ev').addEventListener('input', e => {
+  clearTimeout(R.evTimer); R.evTimer = setTimeout(() => { $('#evwrap').hidden = true; }, 3500);
+  if (R.track) R.track.applyConstraints({ advanced: [{ exposureCompensation: +e.target.value }] }).catch(() => {});
+});
+$('#bSet').addEventListener('click', openSheet);
+$('#sClose').addEventListener('click', () => { $('#sheet').hidden = true; });
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('#sheet').hidden = true; });
+$('#sRes').addEventListener('change', e => { S.res = e.target.value; saveS(); renderChips(); if (!R.rec) openCamera(); });
+$('#sEis').addEventListener('change', e => { S.eis = e.target.checked; saveS(); updatePipe(); updateHUD(); });
+$('#sEisStr').addEventListener('change', e => { S.eisStrength = e.target.value; saveS(); });
+$('#sInv').addEventListener('change', e => { S.gyroInvert = e.target.checked; saveS(); });
+$('#sGrid').addEventListener('change', e => { S.grid = e.target.checked; saveS(); $('#grid').hidden = !S.grid; });
+$('#sAuto').addEventListener('change', e => { S.autosave = e.target.checked; saveS(); });
+$('#sRedetect').addEventListener('click', async () => {
+  if (R.rec) return;
+  $('#sRedetect').textContent = 'Mendeteksi…';
+  stopCam();
+  R.cams = await probeCams(true); R.auto = autoMap(R.cams);
+  $('#sRedetect').textContent = 'Deteksi ulang lensa';
+  buildLensSettings(); buildLenses(); await openCamera(); fillInfo();
+  toast(`${R.cams.filter(c => c.facing !== 'front').length} kamera belakang terdeteksi.`);
+});
+
+$('#vClose').addEventListener('click', closeViewer);
+$('#vPrev').addEventListener('click', () => { if (R.vi > 0) { R.vi--; R.delArm = false; renderViewer(); } });
+$('#vNext').addEventListener('click', () => { if (R.vi < R.gallery.length - 1) { R.vi++; R.delArm = false; renderViewer(); } });
+$('#vSave').addEventListener('click', () => { const it = R.gallery[R.vi]; if (it) { download(it); renderViewer(); toast('Disimpan ke folder Download'); } });
+$('#vShare').addEventListener('click', () => { const it = R.gallery[R.vi]; if (it) shareItem(it); });
+$('#vDel').addEventListener('click', () => {
+  if (!R.delArm) { R.delArm = true; renderViewer(); return; }
+  const it = R.gallery.splice(R.vi, 1)[0];
+  if (it) { URL.revokeObjectURL(it.url); if (it.thumb) URL.revokeObjectURL(it.thumb); }
+  R.delArm = false;
+  const last = R.gallery[R.gallery.length - 1], ti = $('#thumbImg');
+  ti.src = last ? (last.thumb || (last.kind === 'photo' ? last.url : '')) : ''; ti.hidden = !last;
+  if (!R.gallery.length) { closeViewer(); return; }
+  R.vi = Math.min(R.vi, R.gallery.length - 1); renderViewer();
+});
+
+// Gestur di viewfinder: ketuk = fokus, cubit = zoom, geser = ganti mode
+const ptrs = new Map(); let gest = null;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+vf.addEventListener('contextmenu', e => e.preventDefault());
+vf.addEventListener('pointerdown', e => {
+  if (e.target.closest('#lenses,#evwrap,#fdial')) return;
+  try { vf.setPointerCapture(e.pointerId); } catch {}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() });
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gest = { type: 'pinch', d0: Math.max(10, dist(a, b)), z0: R.zoom }; }
+  else if (ptrs.size === 1) gest = { type: 'tap' };
+});
+vf.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  p.x = e.clientX; p.y = e.clientY;
+  if (gest && gest.type === 'pinch' && ptrs.size >= 2) { const [a, b] = [...ptrs.values()]; setZoom(gest.z0 * dist(a, b) / gest.d0); }
+  else if (gest && gest.type === 'tap' && Math.hypot(p.x - p.x0, p.y - p.y0) > 12) gest.type = 'swipe';
+});
+const endPtr = e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  ptrs.delete(e.pointerId);
+  if (!gest) return;
+  if (gest.type === 'tap' && ptrs.size === 0 && performance.now() - p.t < 450) {
+    const r = vf.getBoundingClientRect(); onTap(p.x - r.left, p.y - r.top);
+  } else if (gest.type === 'swipe' && ptrs.size === 0) {
+    const dx = p.x - p.x0, dy = p.y - p.y0;
+    const land = innerWidth > innerHeight;
+    const main = land ? dy : dx, cross = land ? dx : dy;
+    if (Math.abs(main) > 70 && Math.abs(cross) < 70 && !R.rec) {
+      const order = ['cine', 'video', 'photo'], i = order.indexOf(S.mode);
+      const ni = clamp(i + (main < 0 ? 1 : -1), 0, order.length - 1);
+      if (ni !== i) setMode(order[ni]);
+    }
+  }
+  if (ptrs.size === 0) gest = null;
+};
+vf.addEventListener('pointerup', endPtr);
+vf.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); if (!ptrs.size) gest = null; });
+
+addEventListener('resize', () => layout());
+vid.addEventListener('resize', () => { if (!R.pipe) layout(); updateHUD(); });
+document.addEventListener('visibilitychange', async () => {
+  if (!R.started) return;
+  if (document.hidden) {
+    if (R.rec) await stopRecording();
+    stopCam(); if (R.mic) { R.mic.stop(); R.mic = null; }
+  } else {
+    await openCamera(); ensureMic(); wake();
+  }
+});
+async function wake() { try { if (navigator.wakeLock) R.wl = await navigator.wakeLock.request('screen'); } catch {} }
+
+/* ======================= Mulai ======================= */
+async function start() {
+  const msg = $('#startMsg'), btn = $('#bStart');
+  btn.disabled = true; msg.className = 'hint2'; msg.textContent = 'Meminta izin kamera dan mikrofon…';
+  try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch {}
+  let s;
+  try { s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: AUDIO }); }
+  catch (e) {
+    try { s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); toast('Mikrofon tidak diizinkan, video akan tanpa suara.', 3500); }
+    catch (e2) { msg.className = 'hint2 err'; msg.textContent = errMsg(e2); btn.disabled = false; return; }
+  }
+  R.mic = s.getAudioTracks()[0] || null;
+  s.getVideoTracks().forEach(t => t.stop());
+  msg.textContent = 'Mendeteksi lensa kamera…';
+  try { R.cams = await probeCams(false); } catch { R.cams = []; }
+  R.auto = autoMap(R.cams);
+  addEventListener('devicemotion', e => G.on(e));
+  $('#start').hidden = true; R.started = true;
+  if (S.facing === 'front' && !lensMap().front) S.facing = 'back';
+  buildLenses(); applyModeUI();
+  await openCamera();
+  wake(); uiLoop();
+  const backs = R.cams.filter(c => c.facing !== 'front').length;
+  if (backs && backs < 3) toastOnce('fewcams', `Chrome hanya melihat ${backs} kamera belakang. Lensa yang tidak dibuka vivo untuk browser diganti zoom.`, 4500);
+  setTimeout(() => { if (!G.ok) updateHUD(); }, 1500);
+}
+$('#bStart').addEventListener('click', start);
+if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  $('#bStart').disabled = true;
+  const m = $('#startMsg'); m.className = 'hint2 err';
+  m.textContent = 'Kamera hanya bisa dipakai jika aplikasi dibuka lewat alamat https:// (misalnya GitHub Pages) di Chrome. File yang dibuka langsung dari penyimpanan tidak diizinkan memakai kamera.';
+}
+applyModeUI(); layout();
+})();
+</script>
+</body>
+</html>
