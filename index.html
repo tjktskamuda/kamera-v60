@@ -51,7 +51,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
 .mode{padding:6px 2px;font-size:12.5px;font-weight:650;letter-spacing:.15em;color:var(--muted);transition:color .2s}
 .mode.on{color:var(--accent)}
-.recording #modes,.recording #top>*:not(#bRes){visibility:hidden}
+.recording #modes,.recording #top>*:not(#bRes):not(#bAp){visibility:hidden}
 
 #shutter{width:78px;height:78px;border-radius:50%;border:4px solid var(--fg);display:grid;place-items:center;flex:none}
 #shutter i{display:block;width:62px;height:62px;border-radius:50%;background:var(--fg);transition:all .22s cubic-bezier(.3,.7,.3,1)}
@@ -81,9 +81,17 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #sbox.soft{border-color:rgba(255,255,255,.75);border-style:dashed}
 #count{position:absolute;inset:0;display:grid;place-items:center;font-size:110px;font-weight:200;color:#fff;text-shadow:0 2px 20px rgba(0,0,0,.5);pointer-events:none;z-index:4}
 #zpill{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:5px 12px;border-radius:14px;font-size:14px;font-weight:700;color:var(--accent);pointer-events:none;z-index:3}
-#evwrap,#fdial{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);width:min(300px,78%);background:rgba(0,0,0,.5);border-radius:14px;padding:8px 12px;display:flex;align-items:center;gap:10px;z-index:3}
-#fdial{flex-direction:column;gap:4px}
-#fLabel{font-size:15px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+#evwrap{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);width:min(300px,78%);background:rgba(0,0,0,.5);border-radius:14px;padding:8px 12px;display:flex;align-items:center;gap:10px;z-index:3}
+#fdial{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);width:min(340px,90%);background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:16px;padding:8px 14px 7px;z-index:3;touch-action:none}
+#fLabel{display:flex;align-items:baseline;justify-content:center;gap:8px;font-size:16px;font-weight:750;color:var(--accent);font-variant-numeric:tabular-nums}
+#fLabel small{font-size:11.5px;font-weight:600;color:var(--fg);opacity:.85}
+#fScale{position:relative;height:44px;touch-action:none;outline:none}
+#fScale:focus-visible{outline:2px solid var(--accent);border-radius:8px}
+#fScale::before{content:"";position:absolute;left:6%;right:6%;top:50%;height:2px;margin-top:-1px;background:rgba(255,255,255,.18)}
+.ftick{position:absolute;top:50%;width:2px;height:10px;margin:-5px 0 0 -1px;border-radius:1px;background:rgba(255,255,255,.45)}
+.ftick.major{height:18px;margin-top:-9px;background:rgba(255,255,255,.8)}
+#fKnob{position:absolute;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--accent);border:3px solid #16130a;box-shadow:0 1px 8px rgba(0,0,0,.55);transition:left .08s;pointer-events:none}
+.fends{display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 #evwrap svg{flex:none;color:var(--accent)}
 input[type=range]{width:100%;accent-color:var(--accent);height:26px}
 #lenses{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.36);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:3}
@@ -185,8 +193,9 @@ select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9p
         <input type="range" id="ev" min="-2" max="2" step="0.1" value="0" aria-label="Kompensasi eksposur">
       </div>
       <div id="fdial" hidden>
-        <div id="fLabel">ƒ 2.8</div>
-        <input type="range" id="fRange" min="0" max="12" step="1" value="4" aria-label="Bukaan (kedalaman blur)">
+        <div id="fLabel">ƒ 2,8</div>
+        <div id="fScale" role="slider" tabindex="0" aria-label="Kekuatan blur latar (bukaan ƒ)" aria-valuemin="0" aria-valuemax="12"></div>
+        <div class="fends"><span>Blur kuat</span><span>Tajam</span></div>
       </div>
       <div id="lenses"></div>
       <div id="cineLoad" hidden><span class="spin"></span><span>Menyiapkan mode Sinematik…</span></div>
@@ -768,7 +777,7 @@ function renderFrame(meta) {
     const e = x => 1 - Math.exp(-dt / x);
     R.f += (R.fTarget - R.f) * e(0.16);                              // rack-focus halus
     R.pres += ((R.subjectArea > 0.012 ? 1 : 0) - R.pres) * e(0.3);
-    const target = 0.05 * Math.max(W, H) / S.aperture / GLX.k;          // radius blur (piksel tekstur kecil)
+    const target = 0.06 * Math.max(W, H) * Math.max(0, 1 / S.aperture - 1 / 20) / GLX.k; // radius blur: ƒ1,4 sangat kuat … ƒ16 hampir tajam
     R.rad += (target - R.rad) * e(0.12);
     const rbg = R.rad * (1 - R.f) * R.pres, rfg = R.rad * R.f * R.pres;
     passDown();
@@ -1111,7 +1120,8 @@ function applyModeUI() {
   $('#bEis').hidden = S.mode === 'photo';
   $('#bAp').hidden = S.mode !== 'cine';
   $('#bTimer').hidden = S.mode !== 'photo';
-  $('#fdial').hidden = true;
+  $('#fdial').hidden = !(S.mode === 'cine' && S.fOpen !== false);
+  if (S.mode === 'cine') renderF();
   $('#grid').hidden = !S.grid;
   $('#cineLoad').hidden = !(S.mode === 'cine' && R.segLoading);
   if (S.mode !== 'cine') { $('#sbox').hidden = true; $('#hint').hidden = true; }
@@ -1128,6 +1138,7 @@ function renderChips() {
   $('#bRes').textContent = label + ' · ' + r.fps;
   const be = $('#bEis'); be.textContent = 'EIS'; be.classList.toggle('on', !!S.eis); be.classList.toggle('off', !S.eis);
   $('#bAp').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
+  $('#bAp').classList.toggle('on', S.mode === 'cine' && S.fOpen !== false);
   $('#bTimer').innerHTML = IC.timer + (S.timer ? `<small>${S.timer}</small>` : '');
   $('#bTimer').classList.toggle('ic', !S.timer);
   $('#bTimer').classList.toggle('on', !!S.timer);
@@ -1164,7 +1175,6 @@ function onTap(px, py) {
   const Z = R.pipe ? (R.lastZ || 1) : 1;
   const sx = 0.5 + (u - 0.5) / Z, sy = 0.5 + (v - 0.5) / Z;
   hwFocus(sx, sy);
-  $('#fdial').hidden = true;
   if (S.mode === 'cine' && R.segReady) {
     let val = 0;
     if (R.maskF) { const x = clamp(Math.floor(sx * R.maskW), 0, R.maskW - 1), y = clamp(Math.floor(sy * R.maskH), 0, R.maskH - 1); val = R.maskF[y * R.maskW + x]; }
@@ -1321,15 +1331,49 @@ $('#bEis').addEventListener('click', () => {
   updatePipe(); updateHUD();
 });
 $('#bAp').addEventListener('click', () => {
-  const d = $('#fdial'); d.hidden = !d.hidden; $('#evwrap').hidden = true;
-  $('#fRange').value = Math.max(0, APERTURES.indexOf(S.aperture));
-  $('#fLabel').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
+  S.fOpen = $('#fdial').hidden; saveS();
+  $('#fdial').hidden = !S.fOpen; $('#evwrap').hidden = true;
+  renderF(); renderChips();
 });
-$('#fRange').addEventListener('input', e => {
-  S.aperture = APERTURES[+e.target.value] || 2.8; saveS();
-  $('#fLabel').textContent = 'ƒ ' + String(S.aperture).replace('.', ',');
-  renderChips();
-});
+// Penggeser bukaan ƒ (kekuatan blur) — dibuat sendiri agar mudah digeser jari
+const F_POS = i => 6 + 88 * i / (APERTURES.length - 1);
+const F_DESC = f => f <= 2 ? 'blur sangat kuat' : f <= 3.2 ? 'blur kuat' : f <= 5.6 ? 'blur sedang' : f <= 8 ? 'blur halus' : 'hampir tajam';
+(function buildFScale() {
+  const sc = $('#fScale');
+  APERTURES.forEach((f, i) => {
+    const t = document.createElement('i');
+    t.className = 'ftick' + ([1.4, 2, 2.8, 4, 5.6, 8, 11, 16].includes(f) ? ' major' : '');
+    t.style.left = F_POS(i) + '%'; sc.appendChild(t);
+  });
+  const k = document.createElement('b'); k.id = 'fKnob'; sc.appendChild(k);
+})();
+function renderF() {
+  const i = Math.max(0, APERTURES.indexOf(S.aperture));
+  const fTxt = 'ƒ ' + String(S.aperture).replace('.', ',');
+  $('#fKnob').style.left = F_POS(i) + '%';
+  $('#fLabel').innerHTML = fTxt + ' <small>' + F_DESC(S.aperture) + '</small>';
+  const sc = $('#fScale'); sc.setAttribute('aria-valuenow', i); sc.setAttribute('aria-valuetext', fTxt + ', ' + F_DESC(S.aperture));
+}
+function setApIndex(i) {
+  i = clamp(i, 0, APERTURES.length - 1);
+  if (APERTURES[i] === S.aperture) return;
+  S.aperture = APERTURES[i]; saveS(); renderF(); renderChips();
+  try { if (navigator.vibrate) navigator.vibrate(4); } catch {}
+}
+{
+  const sc = $('#fScale');
+  const idxAt = x => { const r = sc.getBoundingClientRect(); return Math.round((((x - r.left) / r.width) * 100 - 6) / 88 * (APERTURES.length - 1)); };
+  sc.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { sc.setPointerCapture(e.pointerId); } catch {} R.fDrag = true; setApIndex(idxAt(e.clientX)); });
+  sc.addEventListener('pointermove', e => { if (R.fDrag) { e.preventDefault(); setApIndex(idxAt(e.clientX)); } });
+  const end = () => { R.fDrag = false; };
+  sc.addEventListener('pointerup', end); sc.addEventListener('pointercancel', end);
+  sc.addEventListener('keydown', e => {
+    const i = APERTURES.indexOf(S.aperture);
+    if (e.key === 'ArrowLeft') { setApIndex(i - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { setApIndex(i + 1); e.preventDefault(); }
+  });
+  $('#fdial').addEventListener('pointerdown', e => e.stopPropagation());
+}
 $('#bTimer').addEventListener('click', () => { S.timer = S.timer === 0 ? 3 : S.timer === 3 ? 10 : 0; saveS(); renderChips(); toast(S.timer ? `Timer ${S.timer} detik` : 'Timer mati', 1200); });
 $('#ev').addEventListener('input', e => {
   clearTimeout(R.evTimer); R.evTimer = setTimeout(() => { $('#evwrap').hidden = true; }, 3500);
