@@ -1,0 +1,64 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'icon-*.png'
+      - 'manifest.webmanifest'
+      - 'android/**'
+      - '.github/workflows/apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Salin aplikasi web dan model AI ke dalam APK (agar bisa offline)
+        run: |
+          set -e
+          W=android/app/src/main/assets/www
+          mkdir -p "$W/mediapipe/wasm"
+          cp index.html manifest.webmanifest icon-192.png icon-512.png icon-maskable-512.png "$W/"
+          MP=https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14
+          curl -fsSL --retry 3 "$MP/vision_bundle.mjs" -o "$W/mediapipe/vision_bundle.mjs"
+          for f in vision_wasm_internal.js vision_wasm_internal.wasm vision_wasm_nosimd_internal.js vision_wasm_nosimd_internal.wasm; do
+            curl -fsSL --retry 3 "$MP/wasm/$f" -o "$W/mediapipe/wasm/$f"
+          done
+          curl -fsSL --retry 3 https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite -o "$W/mediapipe/selfie_segmenter.tflite"
+          ls -laR "$W"
+
+      - name: Build APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Terbitkan APK di Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cp android/app/build/outputs/apk/release/app-release.apk KameraV60.apk
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" KameraV60.apk \
+            --title "Kamera V60 $TAG" \
+            --notes "APK Kamera V60 untuk vivo V60 5G. Unduh **KameraV60.apk**, buka, lalu pasang. Foto dan video tersimpan langsung di galeri (album Kamera V60) dan aplikasi bekerja tanpa internet." \
+            --latest

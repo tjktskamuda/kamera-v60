@@ -320,8 +320,11 @@ const $ = s => document.querySelector(s);
 const vid = $('#vid'), glc = $('#gl'), vf = $('#vf'), stage = $('#stage'), app = $('#app');
 const segCv = $('#segcv'), segCtx = segCv.getContext('2d', { willReadFrequently: false });
 
-const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-const SEG_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+// Versi APK: aplikasi berjalan di dalam WebView dengan jembatan "KameraAndroid" dan model AI di dalam APK
+const AND = window.KameraAndroid || null, APK = !!AND;
+const MP_BASE = APK ? new URL('mediapipe', location.href).href : 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const SEG_MODEL = APK ? new URL('mediapipe/selfie_segmenter.tflite', location.href).href
+  : 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
 
 const RES = {
   '4k30':    { w: 3840, h: 2160, fps: 30, br: 48e6 },
@@ -1116,7 +1119,7 @@ async function shootPhoto() {
     if (!blob) blob = await grabFrame(0);
     if (!blob) { toast('Foto gagal diambil.'); return; }
     const thumb = await grabFrame(240);
-    addMedia(blob, 'photo', 'jpg', thumb);
+    addMedia(blob, 'photo', blob.type === 'image/png' ? 'png' : 'jpg', thumb);
   } finally { R.busy = false; updateShutter(); }
 }
 async function snapDuringRec() { flashFx(); const b = await grabFrame(0); if (b) addMedia(b, 'photo', 'jpg', await grabFrame(240)); }
@@ -1363,7 +1366,8 @@ async function startRecording() {
   rec.start(1000);
   R.rec = rec; R.recStart = performance.now();
   app.classList.add('recording');
-  try { const t = screen.orientation.type; await screen.orientation.lock(t); } catch {}
+  if (APK) { try { AND.lockOrientation(true); } catch {} }
+  else { try { const t = screen.orientation.type; await screen.orientation.lock(t); } catch {} }
   $('#recT').hidden = false; $('#recT').textContent = '00:00';
   R.recTimer = setInterval(() => {
     $('#recT').textContent = fmtT((performance.now() - R.recStart) / 1000);
@@ -1387,7 +1391,8 @@ async function finishRecording() {
   if (R.capStream) { R.capStream.getTracks().forEach(t => t.stop()); R.capStream = null; }
   R.rec = null;
   app.classList.remove('recording');
-  try { screen.orientation.unlock(); } catch {}
+  if (APK) { try { AND.lockOrientation(false); } catch {} }
+  else { try { screen.orientation.unlock(); } catch {} }
   $('#recT').hidden = true; $('#bFps').hidden = true;
   $('#flip').innerHTML = IC.flip; $('#flip').setAttribute('aria-label', 'Ganti kamera depan/belakang');
   const thumb = R.recThumb ? await R.recThumb : null; R.recThumb = null;
@@ -1417,11 +1422,38 @@ function addMedia(blob, kind, ext, thumb) {
   const ti = $('#thumbImg'); ti.src = item.thumb || (kind === 'photo' ? item.url : ''); ti.hidden = !ti.src;
   if (S.autosave) download(item);
 }
-function download(item) {
+async function download(item) {
+  if (APK) return saveToGallery(item);
   const a = document.createElement('a'); a.href = item.url; a.download = item.name;
   document.body.appendChild(a); a.click(); a.remove(); item.saved = true;
 }
+const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+// Simpan langsung ke galeri HP (album "Kamera V60") lewat MediaStore Android
+async function saveToGallery(item) {
+  if (item.saved || item.saving) return item.uri || '';
+  item.saving = true;
+  const mime = item.blob.type || (item.kind === 'video' ? 'video/mp4' : 'image/jpeg');
+  const big = item.blob.size > 15e6;
+  try {
+    const id = AND.begin(item.name, mime, item.kind === 'video');
+    if (!id) throw new Error('file galeri tidak bisa dibuat');
+    const CH = 1 << 20;
+    for (let o = 0; o < item.blob.size; o += CH) {
+      if (!AND.write(id, await blobToB64(item.blob.slice(o, o + CH)))) { AND.abort(id); throw new Error('gagal menulis'); }
+      if (big && (o / CH) % 8 === 0) toast(`Menyimpan ke galeri… ${Math.round(o / item.blob.size * 100)}%`, 2000);
+    }
+    const uri = AND.finish(id);
+    if (!uri) throw new Error('gagal menyelesaikan');
+    item.uri = uri; item.saved = true;
+    toast(item.kind === 'video' ? 'Video tersimpan di galeri · album Kamera V60' : 'Foto tersimpan di galeri · album Kamera V60', 1800);
+    if (!$('#viewer').hidden) renderViewer();
+    return uri;
+  } catch (e) {
+    console.error(e); toast('Gagal menyimpan ke galeri: ' + e.message, 4000); return '';
+  } finally { item.saving = false; }
+}
 async function shareItem(item) {
+  if (APK) { const uri = item.uri || await saveToGallery(item); if (uri) AND.share(uri, item.blob.type || 'application/octet-stream'); return; }
   const file = new File([item.blob], item.name, { type: item.blob.type });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: item.name }); } catch {} }
   else toast('Berbagi file tidak didukung di sini. Pakai tombol Simpan.');
@@ -1646,14 +1678,16 @@ function fillInfo() {
 
 /* ======================= Offline (PWA) ======================= */
 async function offlineState() {
+  if (APK) return 'ai';
   if (!('caches' in window) || !navigator.serviceWorker || !navigator.serviceWorker.controller) return 'none';
   try { return (await caches.match(SEG_MODEL)) ? 'ai' : 'basic'; } catch { return 'none'; }
 }
 function cacheAI() {
+  if (APK) return;
   const c = navigator.serviceWorker && navigator.serviceWorker.controller;
   if (c) c.postMessage('cache-ai');
 }
-if ('serviceWorker' in navigator && window.isSecureContext) {
+if (!APK && 'serviceWorker' in navigator && window.isSecureContext) {
   addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => new Promise(res => {
       if (navigator.serviceWorker.controller) return res();
@@ -1876,12 +1910,17 @@ $('#sRedetect').addEventListener('click', async () => {
 $('#vClose').addEventListener('click', closeViewer);
 $('#vPrev').addEventListener('click', () => { if (R.vi > 0) { R.vi--; R.delArm = false; renderViewer(); } });
 $('#vNext').addEventListener('click', () => { if (R.vi < R.gallery.length - 1) { R.vi++; R.delArm = false; renderViewer(); } });
-$('#vSave').addEventListener('click', () => { const it = R.gallery[R.vi]; if (it) { download(it); renderViewer(); toast('Disimpan ke folder Download'); } });
+$('#vSave').addEventListener('click', async () => {
+  const it = R.gallery[R.vi]; if (!it) return;
+  if (APK) { if (it.saved) toast('Sudah tersimpan di galeri · album Kamera V60'); else await saveToGallery(it); return; }
+  download(it); renderViewer(); toast('Disimpan ke folder Download');
+});
 $('#vShare').addEventListener('click', () => { const it = R.gallery[R.vi]; if (it) shareItem(it); });
 $('#vDel').addEventListener('click', () => {
   if (!R.delArm) { R.delArm = true; renderViewer(); return; }
   const it = R.gallery.splice(R.vi, 1)[0];
   if (it) { URL.revokeObjectURL(it.url); if (it.thumb) URL.revokeObjectURL(it.thumb); }
+  if (it && APK && it.uri) { try { if (AND.remove(it.uri)) toast('Dihapus dari galeri'); } catch {} }
   R.delArm = false;
   const last = R.gallery[R.gallery.length - 1], ti = $('#thumbImg');
   ti.src = last ? (last.thumb || (last.kind === 'photo' ? last.url : '')) : ''; ti.hidden = !last;
@@ -1940,11 +1979,24 @@ document.addEventListener('visibilitychange', async () => {
 });
 async function wake() { try { if (navigator.wakeLock) R.wl = await navigator.wakeLock.request('screen'); } catch {} }
 
+// Tombol kembali Android: tutup panel yang terbuka dulu sebelum keluar aplikasi
+window.__onBack = () => {
+  if (!$('#viewer').hidden) { closeViewer(); return true; }
+  if (!$('#sheet').hidden) { $('#sheet').hidden = true; return true; }
+  if (!$('#lookPanel').hidden) { openLooks(false); return true; }
+  if (R.rec) { stopRecording(); return true; }
+  return false;
+};
+if (APK) {
+  const lab = $('#sAuto').closest('.row').querySelector('small');
+  if (lab) lab.textContent = 'Setiap foto/video langsung masuk galeri, album Kamera V60';
+}
+
 /* ======================= Mulai ======================= */
 async function start() {
   const msg = $('#startMsg'), btn = $('#bStart');
   btn.disabled = true; msg.className = 'hint2'; msg.textContent = 'Meminta izin kamera dan mikrofon…';
-  try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch {}
+  if (!APK) { try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch {} }
   let s;
   try { s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: AUDIO }); }
   catch (e) {
