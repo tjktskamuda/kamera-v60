@@ -51,7 +51,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
 .mode{padding:6px 2px;font-size:12.5px;font-weight:650;letter-spacing:.15em;color:var(--muted);transition:color .2s}
 .mode.on{color:var(--accent)}
-.recording #modes,.recording #top>*:not(#bRes):not(#bAp){visibility:hidden}
+.recording #modes,.recording #top>*:not(#bRes):not(#bAp):not(#bLook){visibility:hidden}
 
 #shutter{width:78px;height:78px;border-radius:50%;border:4px solid var(--fg);display:grid;place-items:center;flex:none}
 #shutter i{display:block;width:62px;height:62px;border-radius:50%;background:var(--fg);transition:all .22s cubic-bezier(.3,.7,.3,1)}
@@ -63,7 +63,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .round{width:50px;height:50px;border-radius:50%;background:var(--dim);display:grid;place-items:center;flex:none}
 
-#hud{position:absolute;top:10px;left:0;right:0;display:flex;justify-content:center;gap:6px;pointer-events:none;z-index:3}
+#hud{position:absolute;top:10px;left:8px;right:8px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;pointer-events:none;z-index:3}
 .badge{font-size:10.5px;font-weight:750;letter-spacing:.08em;padding:3px 7px;border-radius:5px;background:rgba(0,0,0,.5);color:var(--fg);font-variant-numeric:tabular-nums}
 .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)}
 .badge.rec{background:var(--rec);color:#fff;font-size:12px;padding:3px 9px}
@@ -98,6 +98,29 @@ input[type=range]{width:100%;accent-color:var(--accent);height:26px}
 .lens{width:34px;height:34px;border-radius:50%;font-size:11px;font-weight:750;background:rgba(0,0,0,.4);color:var(--fg);transition:width .15s,height .15s,font-size .15s;font-variant-numeric:tabular-nums}
 .lens.on{width:42px;height:42px;font-size:13px;color:var(--accent)}
 .lens[data-optical="0"]{color:rgba(245,244,239,.75)}
+#lookPanel{position:absolute;left:0;right:0;bottom:0;z-index:6;background:linear-gradient(to top,rgba(0,0,0,.86),rgba(0,0,0,.6));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:10px 0 6px}
+.look-row{display:flex;gap:8px;overflow-x:auto;padding:2px max(14px,env(safe-area-inset-left,0px)) 6px;touch-action:pan-x;scrollbar-width:none;overscroll-behavior-x:contain}
+.look-row::-webkit-scrollbar{display:none}
+.look{flex:none;width:70px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.look canvas{width:62px;height:62px;border-radius:12px;background:#1d1d20;border:2px solid transparent;display:block}
+.look.on canvas{border-color:var(--accent)}
+.look .lb{font-size:8.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;max-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.look .ln{font-size:11px;font-weight:650;line-height:1.15;text-align:center;max-width:70px}
+.look.on .ln{color:var(--accent)}
+.look-sep{flex:none;width:1px;background:rgba(255,255,255,.16);margin:6px 3px 26px}
+.look-amt{display:flex;align-items:center;gap:12px;padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.look-amt span{font-size:10.5px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+#amtScale{flex:1;position:relative;height:38px;touch-action:none;outline:none}
+#amtScale:focus-visible{outline:2px solid var(--accent);border-radius:8px}
+#amtScale::before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;margin-top:-2px;border-radius:2px;background:rgba(255,255,255,.2)}
+#amtFill{position:absolute;left:0;top:50%;height:4px;margin-top:-2px;border-radius:2px;background:var(--accent)}
+#amtKnob{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--accent);border:3px solid #16130a;box-shadow:0 1px 6px rgba(0,0,0,.5);pointer-events:none}
+#amtVal{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:42px;text-align:right}
+.looks-open #lenses,.looks-open #fdial,.looks-open #evwrap,.looks-open #zpill{visibility:hidden}
+#lookName{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:4;transition:opacity .45s;white-space:nowrap}
+#lookName b{display:block;font-size:11px;font-weight:800;letter-spacing:.2em;color:var(--accent);text-shadow:0 1px 8px rgba(0,0,0,.6)}
+#lookName span{font-size:24px;font-weight:700;text-shadow:0 2px 16px rgba(0,0,0,.65)}
+#lookName.fade{opacity:0}
 #flashov{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
 #flashov.go{animation:flash .28s ease-out}
 @keyframes flash{0%{opacity:.85}100%{opacity:0}}
@@ -167,6 +190,7 @@ select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9p
     <button class="chip" id="bEis" aria-label="Stabilisasi EIS">EIS</button>
     <button class="chip" id="bAp" aria-label="Bukaan sinematik">ƒ 2.8</button>
     <button class="chip ic" id="bTimer" aria-label="Timer foto"></button>
+    <button class="chip ic" id="bLook" aria-label="Filter warna"></button>
     <span class="grow"></span>
     <button class="chip ic" id="bSet" aria-label="Pengaturan"></button>
   </div>
@@ -182,6 +206,7 @@ select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9p
         <span id="bOis" class="badge ok">OIS</span>
         <span id="bEisB" class="badge">EIS</span>
         <span id="bFps" class="badge" hidden></span>
+        <span id="bLookB" class="badge" hidden></span>
       </div>
       <div id="hint" hidden></div>
       <div id="sbox" hidden></div>
@@ -198,8 +223,13 @@ select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9p
         <div class="fends"><span>Blur kuat</span><span>Tajam</span></div>
       </div>
       <div id="lenses"></div>
+      <div id="lookName" class="fade" aria-live="polite"><b></b><span></span></div>
       <div id="cineLoad" hidden><span class="spin"></span><span>Menyiapkan mode Sinematik…</span></div>
       <div id="flashov"></div>
+    </div>
+    <div id="lookPanel" hidden>
+      <div class="look-row" id="lookRow" role="listbox" aria-label="Filter warna"></div>
+      <div class="look-amt"><span>Intensitas</span><div id="amtScale" role="slider" tabindex="0" aria-label="Intensitas filter" aria-valuemin="0" aria-valuemax="100"><i id="amtFill"></i><b id="amtKnob"></b></div><b id="amtVal">100%</b></div>
     </div>
   </div>
 
@@ -259,6 +289,7 @@ select{background:#232326;color:var(--fg);border:1px solid #333;border-radius:9p
     <div class="info" id="sInfo"></div>
     <p class="note">OIS adalah stabilisasi mekanis di lensa utama dan telefoto V60. Ia bekerja otomatis di dalam modul kamera; browser tidak punya tombol untuk menyalakan atau mematikannya. EIS di aplikasi ini adalah stabilisasi digital berbasis giroskop yang dihitung sendiri oleh aplikasi.</p>
     <p class="note">Rekaman disimpan sementara di memori browser sebelum diunduh. Untuk 4K, klip di bawah ±5 menit paling aman.</p>
+    <p class="note">Filter warna Leica, Fujifilm, Canon, Sony, Zeiss, dan iPhone 17 Pro adalah tiruan karakter warnanya, bukan profil resmi dari merek tersebut. Filter ikut terekam di video dan diterapkan ke foto resolusi penuh.</p>
   </div>
 </div>
 
@@ -307,6 +338,46 @@ const LENS = {
   front: { name: 'Depan',      short: '',    zoom: 1,   dfov: 92,  ois: false },
 };
 const APERTURES = [1.4, 1.8, 2, 2.2, 2.8, 3.2, 4, 4.5, 5.6, 6.3, 8, 11, 16];
+/* Filter warna: tiruan gaya warna (bukan profil resmi merek).
+   exp = eksposur (stop), con = kontras (-1..1), sat = saturasi (×), vib = vibrance, temp = suhu (+hangat), tint (+magenta),
+   fade = angkat hitam, white = titik putih, sh/hi = warna bayangan/sorotan [r,g,b,kekuatan], mono + mix = hitam-putih,
+   grain, vig = vignette, hue = per warna {r,y,g,c,b,m: [geser hue derajat, saturasi %, kecerahan]} */
+const LOOKS = [
+  { id: 'none', brand: 'Asli', name: 'Tanpa filter' },
+  { id: 'leica-authentic', brand: 'Leica', name: 'Authentic', p: { con: 0.32, sat: 0.94, vib: 0.05, temp: 0.08, white: 0.985, vig: 0.38, sh: [-0.01, 0, 0.012, 0.5], hue: { r: [2, 6, -0.03], y: [-3, -6, 0], g: [-5, -18, -0.05], c: [0, -10, -0.02], b: [0, -6, -0.06], m: [0, -10, 0] } } },
+  { id: 'leica-vibrant', brand: 'Leica', name: 'Vibrant', p: { exp: 0.06, con: 0.22, sat: 1.14, vib: 0.2, temp: 0.05, vig: 0.1, hue: { r: [0, 10, 0], y: [0, 6, 0.02], g: [0, 8, -0.02], b: [-3, 12, -0.03] } } },
+  { id: 'leica-bwhc', brand: 'Leica', name: 'B&W High Contrast', p: { mono: 1, mix: [0.32, 0.58, 0.1], con: 0.6, vig: 0.22, grain: 0.03 } },
+  { id: 'leica-bwnat', brand: 'Leica', name: 'B&W Natural', p: { mono: 1, mix: [0.28, 0.6, 0.12], con: 0.18, fade: 0.02, white: 0.985, vig: 0.12, grain: 0.02 } },
+  { id: 'fuji-cc', brand: 'Fujifilm', name: 'Classic Chrome', p: { con: 0.3, sat: 0.78, temp: 0.02, fade: 0.015, white: 0.97, sh: [-0.012, 0, 0.022, 0.6], hi: [0.02, 0.012, -0.012, 0.4], hue: { r: [-2, -18, -0.05], y: [-4, -18, 0], g: [-8, -32, -0.05], c: [0, -12, 0], b: [-10, -8, -0.08], m: [0, -28, 0] } } },
+  { id: 'fuji-cn', brand: 'Fujifilm', name: 'Classic Neg', p: { con: 0.36, sat: 0.9, temp: -0.02, fade: 0.025, white: 0.96, sh: [-0.025, 0.012, 0.03, 0.8], hi: [0.03, 0.022, -0.02, 0.5], hue: { r: [6, 0, -0.03], y: [-8, -10, 0], g: [12, -38, 0.02], c: [0, -10, 0], b: [-6, 4, -0.05], m: [0, -20, 0] } } },
+  { id: 'fuji-nn', brand: 'Fujifilm', name: 'Nostalgic Neg', p: { con: 0.14, sat: 0.92, temp: 0.2, fade: 0.03, white: 0.97, hi: [0.045, 0.022, -0.035, 0.7], sh: [0.01, 0, -0.01, 0.4], hue: { r: [4, 0, 0], y: [-6, 10, 0.02], g: [-10, -18, 0], b: [0, -15, -0.02] } } },
+  { id: 'fuji-reala', brand: 'Fujifilm', name: 'Reala Ace', p: { con: 0.26, sat: 1.04, vib: 0.06, hue: { g: [0, -6, -0.02], b: [0, 6, -0.03] } } },
+  { id: 'fuji-velvia', brand: 'Fujifilm', name: 'Velvia', p: { con: 0.36, sat: 1.35, vib: 0.1, temp: 0.02, white: 0.99, hue: { r: [0, 12, -0.02], y: [0, 10, 0], g: [4, 16, -0.05], c: [0, 10, -0.02], b: [-4, 18, -0.07], m: [0, 10, 0] } } },
+  { id: 'fuji-eterna', brand: 'Fujifilm', name: 'Eterna', p: { con: -0.22, sat: 0.72, fade: 0.04, white: 0.95, sh: [-0.01, 0.01, 0.02, 0.5], hue: { r: [0, -10, 0], g: [0, -25, 0], b: [0, -15, 0] } } },
+  { id: 'fuji-acros', brand: 'Fujifilm', name: 'Acros', p: { mono: 1, mix: [0.25, 0.65, 0.1], con: 0.32, fade: 0.01, white: 0.98, grain: 0.045, vig: 0.1 } },
+  { id: 'canon-std', brand: 'Canon', name: 'Standard', p: { exp: 0.03, con: 0.16, sat: 1.1, vib: 0.1, temp: 0.12, tint: 0.03, hue: { r: [3, 8, 0], y: [-3, 5, 0.02], g: [-3, -5, 0], b: [0, 5, 0] } } },
+  { id: 'sony-fl', brand: 'Sony', name: 'FL Film', p: { con: 0.3, sat: 0.84, temp: -0.04, fade: 0.015, white: 0.98, sh: [-0.01, 0, 0.02, 0.4], hue: { r: [0, -20, -0.02], y: [0, -15, 0], g: [-3, 10, -0.04], c: [0, 15, -0.02], b: [-5, 15, -0.05], m: [0, -15, 0] } } },
+  { id: 'sony-cine', brand: 'Sony', name: 'S-Cinetone', p: { con: -0.05, sat: 0.95, temp: 0.06, fade: 0.02, white: 0.96, hi: [0.02, 0.01, -0.01, 0.3], hue: { r: [3, -5, 0], g: [0, -15, 0], b: [0, -8, 0] } } },
+  { id: 'zeiss-nat', brand: 'Zeiss', name: 'Natural', p: { con: 0.12, vib: 0.05, temp: -0.03, vig: 0.12, hue: { b: [0, 5, -0.02] } } },
+  { id: 'zeiss-vivid', brand: 'Zeiss', name: 'Vivid', p: { con: 0.25, sat: 1.18, vib: 0.15, temp: -0.02, vig: 0.15, hue: { r: [0, 8, 0], g: [0, 10, -0.02], b: [-3, 15, -0.05] } } },
+  { id: 'iphone-std', brand: 'iPhone 17 Pro', name: 'Standar', p: { exp: 0.08, con: 0.06, sat: 1.08, vib: 0.15, temp: 0.05, fade: 0.012 } },
+  { id: 'iphone-amber', brand: 'iPhone 17 Pro', name: 'Amber', p: { exp: 0.06, con: 0.08, sat: 1.05, vib: 0.1, temp: 0.26, fade: 0.01, hi: [0.03, 0.015, -0.02, 0.4] } },
+  { id: 'iphone-coolrose', brand: 'iPhone 17 Pro', name: 'Cool Rose', p: { exp: 0.05, con: 0.06, temp: -0.12, tint: 0.12, fade: 0.01, hi: [0.012, -0.008, 0.02, 0.3] } },
+];
+function packLook(p) {
+  p = p || {};
+  const hue = new Float32Array(18);
+  ['r', 'y', 'g', 'c', 'b', 'm'].forEach((k, i) => { const v = (p.hue && p.hue[k]) || [0, 0, 0]; hue[i * 3] = v[0] / 360; hue[i * 3 + 1] = v[1] / 100; hue[i * 3 + 2] = v[2]; });
+  return {
+    L0: new Float32Array([p.exp || 0, p.con || 0, p.sat ?? 1, p.vib || 0]),
+    L1: new Float32Array([p.temp || 0, p.tint || 0, p.fade || 0, p.white ?? 1]),
+    L2: new Float32Array(p.sh || [0, 0, 0, 0]), L3: new Float32Array(p.hi || [0, 0, 0, 0]),
+    L4: new Float32Array([p.mono ? 1 : 0, p.grain || 0, p.vig || 0, 0]),
+    mix: new Float32Array(p.mix || [0.2126, 0.7152, 0.0722]), hue,
+  };
+}
+const LOOK = Object.fromEntries(LOOKS.map(l => [l.id, Object.assign({ u: packLook(l.p) }, l)]));
+const lookLabel = id => { const l = LOOK[id] || LOOK.none; return l.id === 'none' ? 'Asli' : l.name; };
 const AUDIO = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 }, sampleRate: { ideal: 48000 } };
 
 const svg = (p, sz = 22) => `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -325,11 +396,12 @@ const IC = {
   trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   left: svg('<path d="M15 5l-7 7 7 7"/>', 26),
   right: svg('<path d="M9 5l7 7-7 7"/>', 26),
+  looks: svg('<circle cx="9" cy="9.5" r="5.2"/><circle cx="15" cy="9.5" r="5.2"/><circle cx="12" cy="14.8" r="5.2"/>', 20),
 };
 
 /* ======================= Status ======================= */
 const DEF = { mode: 'photo', lens: 'main', facing: 'back', res: '4k30', eis: true, eisStrength: 'std', gyroInvert: false,
-  grid: false, autosave: true, aperture: 2.8, flash: 'off', timer: 0, lensOverride: {} };
+  grid: false, autosave: true, aperture: 2.8, flash: 'off', timer: 0, lensOverride: {}, filter: 'none', filterAmt: 1 };
 let S = Object.assign({}, DEF, loadJSON('kv60', {}));
 if (!RES[S.res]) S.res = '4k30';
 function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } }
@@ -616,6 +688,48 @@ void main(){
   vec4 c0 = texture(uSmall, fuv(uv));
   o = vec4(acc.w > 1e-3 ? sqrt(acc.rgb/acc.w) : c0.rgb, 1.0);
 }`;
+// Pengolah warna untuk filter (dipakai di layar, video, dan foto resolusi penuh)
+const LOOK_GLSL = `
+uniform float uLook; uniform vec4 uL0; uniform vec4 uL1; uniform vec4 uL2; uniform vec4 uL3; uniform vec4 uL4;
+uniform vec3 uMix; uniform vec3 uHue[6]; uniform float uTime;
+vec3 rgb2hsv(vec3 c){ vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0); vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r)); float d = q.x - min(q.w, q.y); float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y)/(6.0*d + e)), d/(q.x + e), q.x); }
+vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0))*6.0 - 3.0); return c.z*mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y)*p3.z); }
+vec3 applyLook(vec3 c, vec2 uv, vec2 px){
+  vec3 lin = c*c;
+  lin *= vec3(1.0 + uL1.x*0.12 + uL1.y*0.03, 1.0 - uL1.y*0.07, 1.0 - uL1.x*0.12 + uL1.y*0.03);
+  lin *= exp2(uL0.x);
+  vec3 o = sqrt(max(lin, vec3(0.0)));
+  vec3 hsv = rgb2hsv(clamp(o, 0.0, 1.0));
+  float h6 = hsv.x*6.0;
+  vec3 adj = vec3(0.0);
+  for (int i = 0; i < 6; i++) { float d = abs(h6 - float(i)); d = min(d, 6.0 - d); adj += uHue[i]*max(0.0, 1.0 - d); }
+  float cw = smoothstep(0.04, 0.3, hsv.y);
+  hsv.x = fract(hsv.x + adj.x*cw + 1.0);
+  hsv.y = clamp(hsv.y*(1.0 + adj.y*cw), 0.0, 1.0);
+  hsv.z = clamp(hsv.z + adj.z*cw*hsv.y, 0.0, 1.0);
+  o = hsv2rgb(hsv);
+  float L = dot(o, vec3(0.2126, 0.7152, 0.0722));
+  float s = max(o.r, max(o.g, o.b)) - min(o.r, min(o.g, o.b));
+  o = mix(vec3(L), o, uL0.z*(1.0 + uL0.w*(1.0 - s)));
+  vec3 x = clamp(o, 0.0, 1.0);
+  o = uL0.y >= 0.0 ? mix(x, x*x*(3.0 - 2.0*x), uL0.y) : 0.5 + (x - 0.5)*(1.0 + uL0.y);
+  if (uL4.x > 0.5) o = vec3(dot(clamp(o, 0.0, 1.0), uMix));
+  o = uL1.z + o*(uL1.w - uL1.z);
+  L = dot(o, vec3(0.2126, 0.7152, 0.0722));
+  o += uL2.rgb*uL2.a*(1.0 - L)*(1.0 - L) + uL3.rgb*uL3.a*L*L;
+  o *= 1.0 - uL4.z*smoothstep(0.3, 1.05, length(uv - 0.5)*1.4142);
+  o += (hash12(uv*px + uTime) - 0.5)*uL4.y*(1.0 - abs(L - 0.5)*1.2);
+  return clamp(o, 0.0, 1.0);
+}`;
+const FS_PHOTO = `#version 300 es
+precision highp float;
+in vec2 vUV; out vec4 o;
+uniform sampler2D uImg; uniform vec2 uRes;
+${LOOK_GLSL}
+void main(){ vec3 c = texture(uImg, vUV).rgb; o = vec4(uLook > 0.001 ? mix(c, applyLook(c, vUV, uRes), uLook) : c, 1.0); }`;
 // 3) komposit: transformasi stabilisasi + gabung tajam/blur dengan mask yang dihaluskan mengikuti warna
 const FS_COMP = `#version 300 es
 precision highp float;
@@ -623,6 +737,7 @@ in vec2 vUV; out vec4 o;
 uniform sampler2D uVideo; uniform sampler2D uSmall; uniform sampler2D uBG; uniform sampler2D uFG;
 uniform vec2 uOut; uniform vec2 uSrc; uniform float uScale; uniform vec2 uRot; uniform float uInvZ; uniform vec2 uShift;
 uniform float uCine; uniform float uTb; uniform float uTf; uniform vec2 uSmallSize; uniform vec2 uEdge;
+${LOOK_GLSL}
 vec2 fuv(vec2 u){ return vec2(u.x, 1.0-u.y); }
 vec2 toSrc(vec2 uv){
   vec2 p = (uv - 0.5) * uOut;
@@ -643,11 +758,15 @@ float refined(vec2 s, vec3 c){
 void main(){
   vec2 s = toSrc(vUV);
   vec3 sharp = texture(uVideo, s).rgb;
-  if (uCine < 0.5) { o = vec4(sharp, 1.0); return; }
-  float m = smoothstep(uEdge.x, uEdge.y, refined(s, sharp));
-  vec3 bg = uTb > 0.001 ? mix(sharp, texture(uBG, fuv(s)).rgb, uTb) : sharp;
-  vec3 fg = uTf > 0.001 ? mix(sharp, texture(uFG, fuv(s)).rgb, uTf) : sharp;
-  o = vec4(mix(bg, fg, m), 1.0);
+  vec3 col = sharp;
+  if (uCine > 0.5) {
+    float m = smoothstep(uEdge.x, uEdge.y, refined(s, sharp));
+    vec3 bg = uTb > 0.001 ? mix(sharp, texture(uBG, fuv(s)).rgb, uTb) : sharp;
+    vec3 fg = uTf > 0.001 ? mix(sharp, texture(uFG, fuv(s)).rgb, uTf) : sharp;
+    col = mix(bg, fg, m);
+  }
+  if (uLook > 0.001) col = mix(col, applyLook(col, vUV, uOut), uLook);
+  o = vec4(col, 1.0);
 }`;
 
 const GLX = { gl: null, W: 0, H: 0, srcW: 0, srcH: 0, k: 1 };
@@ -710,7 +829,7 @@ function allocSrc(W, H) {
   GLX.small = mkFbo(gl, sw, sh); GLX.bg = mkFbo(gl, sw, sh); GLX.fg = mkFbo(gl, sw, sh);
   GLX.k = k; GLX.srcW = W; GLX.srcH = H;
 }
-function needPipe() { return S.mode === 'cine' || (S.mode === 'video' && S.eis) || R.sw > 1.001; }
+function needPipe() { return S.mode === 'cine' || (S.mode === 'video' && S.eis) || R.sw > 1.001 || (S.filter !== 'none' && S.filterAmt > 0); }
 function updatePipe() {
   if (R.rec) { if (R.pipe) startLoop(); return; }
   let need = needPipe();
@@ -822,7 +941,55 @@ function passComp(st, cine, tb, tf, W, H, OW, OH) {
   gl.uniform1f(P.u.uCine, cine ? 1 : 0); gl.uniform1f(P.u.uTb, tb); gl.uniform1f(P.u.uTf, tf);
   gl.uniform2f(P.u.uSmallSize, cine ? GLX.small.w : 1, cine ? GLX.small.h : 1);
   gl.uniform2f(P.u.uEdge, 0.3, 0.7);
+  R.grainT = ((R.grainT || 0) + 7.31) % 997;
+  setLook(gl, P, S.filter, S.filterAmt, R.grainT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function setLook(gl, P, id, amt, time) {
+  const L = LOOK[id] || LOOK.none;
+  const on = L.id !== 'none' && amt > 0.001;
+  gl.uniform1f(P.u.uLook, on ? amt : 0);
+  if (!on) return;
+  const u = L.u;
+  gl.uniform4fv(P.u.uL0, u.L0); gl.uniform4fv(P.u.uL1, u.L1); gl.uniform4fv(P.u.uL2, u.L2); gl.uniform4fv(P.u.uL3, u.L3); gl.uniform4fv(P.u.uL4, u.L4);
+  gl.uniform3fv(P.u.uMix, u.mix); gl.uniform3fv(P.u.uHue, u.hue); gl.uniform1f(P.u.uTime, time);
+}
+// Konteks GPU kedua untuk memproses foto resolusi penuh dan pratinjau filter
+const PG = { gl: null };
+function photoGL() {
+  if (PG.gl && !PG.gl.isContextLost()) return PG;
+  const cv = document.createElement('canvas');
+  const gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: true });
+  if (!gl) return null;
+  try { PG.P = mkProg(gl, FS_PHOTO); } catch (e) { console.error(e); return null; }
+  const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  PG.vao = gl.createVertexArray(); gl.bindVertexArray(PG.vao);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  PG.tex = mkTex(gl); PG.cv = cv; PG.gl = gl; PG.max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  return PG;
+}
+function renderLook(pg, src, w, h, id, amt, time) {
+  const gl = pg.gl;
+  if (pg.cv.width !== w || pg.cv.height !== h) { pg.cv.width = w; pg.cv.height = h; }
+  gl.viewport(0, 0, w, h);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, pg.tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.useProgram(pg.P.p); gl.uniform1i(pg.P.u.uImg, 0); gl.uniform2f(pg.P.u.uRes, w, h);
+  setLook(gl, pg.P, id, amt, time);
+  gl.bindVertexArray(pg.vao); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+async function applyLookToBlob(blob) {
+  const pg = photoGL(); if (!pg) return blob;
+  let bmp;
+  try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch { bmp = await createImageBitmap(blob); }
+  let w = bmp.width, h = bmp.height;
+  const k = Math.min(1, pg.max / Math.max(w, h));
+  if (k < 1) { w = Math.round(w * k); h = Math.round(h * k); bmp = await createImageBitmap(bmp, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' }); }
+  renderLook(pg, bmp, w, h, S.filter, S.filterAmt, 0);
+  return await new Promise(r => pg.cv.toBlob(b => r(b || blob), 'image/jpeg', 0.95));
 }
 
 /* ======================= Segmentasi orang (MediaPipe) ======================= */
@@ -943,8 +1110,9 @@ async function shootPhoto() {
     if (S.timer) await countdown(S.timer);
     flashFx();
     let blob = null;
-    if (!R.pipe || R.sw > 1.001) { try { blob = await takeFull(); } catch (e) { console.warn('takePhoto gagal', e); } }
+    try { blob = await takeFull(); } catch (e) { console.warn('takePhoto gagal', e); }
     if (blob && R.sw > 1.001) blob = await cropCenter(blob, R.sw);
+    if (blob && S.filter !== 'none' && S.filterAmt > 0) { try { blob = await applyLookToBlob(blob); } catch (e) { console.warn('filter foto gagal', e); } }
     if (!blob) blob = await grabFrame(0);
     if (!blob) { toast('Foto gagal diambil.'); return; }
     const thumb = await grabFrame(240);
@@ -1142,6 +1310,7 @@ function renderChips() {
   $('#bTimer').innerHTML = IC.timer + (S.timer ? `<small>${S.timer}</small>` : '');
   $('#bTimer').classList.toggle('ic', !S.timer);
   $('#bTimer').classList.toggle('on', !!S.timer);
+  $('#bLook').classList.toggle('on', S.filter !== 'none' || app.classList.contains('looks-open'));
 }
 function updateHUD() {
   renderChips();
@@ -1156,6 +1325,9 @@ function updateHUD() {
   eb.hidden = S.mode === 'photo' || !S.eis;
   eb.className = 'badge ' + (G.ok ? 'ok' : 'warn');
   eb.textContent = G.ok ? 'EIS' : 'EIS · tanpa gyro';
+  const lb = $('#bLookB');
+  lb.hidden = S.filter === 'none' || !(S.filterAmt > 0);
+  lb.textContent = lookLabel(S.filter);
 }
 function updateShutter() {
   const dis = R.busy || (S.mode === 'cine' && !R.segReady);
@@ -1291,6 +1463,7 @@ function openSheet() {
 
 /* ======================= Event ======================= */
 $('#bSet').innerHTML = IC.gear;
+$('#bLook').innerHTML = IC.looks;
 $('#flip').innerHTML = IC.flip;
 $('#vClose').innerHTML = IC.close;
 $('#vPrev').innerHTML = IC.left; $('#vNext').innerHTML = IC.right;
@@ -1380,6 +1553,92 @@ $('#ev').addEventListener('input', e => {
   if (R.track) R.track.applyConstraints({ advanced: [{ exposureCompensation: +e.target.value }] }).catch(() => {});
 });
 $('#bSet').addEventListener('click', openSheet);
+
+/* ======================= Panel filter warna ======================= */
+(function buildLookRow() {
+  const row = $('#lookRow');
+  let prev = null;
+  for (const l of LOOKS) {
+    if (prev && prev !== l.brand) { const sep = document.createElement('span'); sep.className = 'look-sep'; row.appendChild(sep); }
+    prev = l.brand;
+    const b = document.createElement('button');
+    b.className = 'look'; b.dataset.id = l.id; b.setAttribute('role', 'option');
+    b.setAttribute('aria-label', l.id === 'none' ? 'Tanpa filter' : `${l.brand} ${l.name}`);
+    const c = document.createElement('canvas'); c.width = 124; c.height = 124;
+    const lb = document.createElement('span'); lb.className = 'lb'; lb.textContent = l.id === 'none' ? 'Asli' : l.brand;
+    const ln = document.createElement('span'); ln.className = 'ln'; ln.textContent = l.id === 'none' ? 'Tanpa filter' : l.name;
+    b.append(c, lb, ln);
+    b.addEventListener('click', () => chooseLook(l.id));
+    row.appendChild(b);
+  }
+})();
+function markLooks() {
+  for (const b of document.querySelectorAll('.look')) { const on = b.dataset.id === S.filter; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }
+}
+function refreshLookThumbs() {
+  const w = vid.videoWidth, h = vid.videoHeight;
+  const pg = photoGL(); if (!w || !pg) return;
+  const side = Math.min(w, h), N = 124;
+  const tmp = R.thumbCv || (R.thumbCv = document.createElement('canvas')); tmp.width = N; tmp.height = N;
+  const tx = tmp.getContext('2d');
+  tx.save(); if (S.facing === 'front') { tx.translate(N, 0); tx.scale(-1, 1); }
+  tx.drawImage(vid, (w - side) / 2, (h - side) / 2, side, side, 0, 0, N, N); tx.restore();
+  for (const b of document.querySelectorAll('.look')) {
+    renderLook(pg, tmp, N, N, b.dataset.id, 1, 0);
+    b.querySelector('canvas').getContext('2d').drawImage(pg.cv, 0, 0, N, N);
+  }
+}
+function openLooks(open) {
+  app.classList.toggle('looks-open', open);
+  $('#lookPanel').hidden = !open;
+  clearInterval(R.thumbTimer);
+  if (open) {
+    markLooks(); renderAmt(); refreshLookThumbs();
+    R.thumbTimer = setInterval(refreshLookThumbs, 2500);
+    const on = document.querySelector('.look.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  renderChips();
+}
+function showLookName() {
+  const el = $('#lookName'), l = LOOK[S.filter] || LOOK.none;
+  el.querySelector('b').textContent = l.id === 'none' ? '' : l.brand.toUpperCase();
+  el.querySelector('span').textContent = l.id === 'none' ? 'Tanpa filter' : l.name;
+  el.classList.remove('fade'); clearTimeout(R.lookNameTimer);
+  R.lookNameTimer = setTimeout(() => el.classList.add('fade'), 1100);
+}
+function chooseLook(id) {
+  if (id === S.filter) return;
+  if (R.rec && !R.pipe) { toast('Pilih filter sebelum mulai merekam, atau aktifkan EIS agar filter bisa diganti saat merekam.', 3500); return; }
+  S.filter = id; saveS();
+  markLooks(); updatePipe(); updateHUD(); showLookName();
+}
+$('#bLook').addEventListener('click', () => openLooks($('#lookPanel').hidden));
+// Penggeser intensitas filter
+function renderAmt() {
+  const pct = Math.round(S.filterAmt * 100);
+  $('#amtFill').style.width = pct + '%'; $('#amtKnob').style.left = pct + '%';
+  $('#amtVal').textContent = pct + '%';
+  const sc = $('#amtScale'); sc.setAttribute('aria-valuenow', pct); sc.setAttribute('aria-valuetext', pct + ' persen');
+}
+function setAmt(v) {
+  v = clamp(Math.round(v * 20) / 20, 0, 1);
+  if (v === S.filterAmt) return;
+  if (R.rec && !R.pipe && v > 0 && S.filter !== 'none') return;
+  S.filterAmt = v; saveS(); renderAmt(); updateHUD();
+  if (!R.rec) updatePipe();
+}
+{
+  const sc = $('#amtScale');
+  const at = x => { const r = sc.getBoundingClientRect(); return (x - r.left) / r.width; };
+  sc.addEventListener('pointerdown', e => { e.preventDefault(); try { sc.setPointerCapture(e.pointerId); } catch {} R.amtDrag = true; setAmt(at(e.clientX)); });
+  sc.addEventListener('pointermove', e => { if (R.amtDrag) { e.preventDefault(); setAmt(at(e.clientX)); } });
+  const end = () => { R.amtDrag = false; };
+  sc.addEventListener('pointerup', end); sc.addEventListener('pointercancel', end);
+  sc.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { setAmt(S.filterAmt - 0.05); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { setAmt(S.filterAmt + 0.05); e.preventDefault(); }
+  });
+}
 $('#sClose').addEventListener('click', () => { $('#sheet').hidden = true; });
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('#sheet').hidden = true; });
 $('#sRes').addEventListener('change', e => { S.res = e.target.value; saveS(); renderChips(); if (!R.rec) openCamera(); });

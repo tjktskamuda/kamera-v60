@@ -11,6 +11,13 @@ Aplikasi web kamera untuk **vivo V60 5G**, dibuka lewat Chrome di HP.
 - Tombol lensa 0,6× / 1× / 3× untuk ultra-wide, utama, dan telefoto, plus kamera depan
 - Stabilisasi EIS berbasis giroskop (dihitung aplikasi); OIS hardware aktif otomatis di lensa utama dan telefoto
 - Ketuk untuk fokus dan eksposur, cubit untuk zoom, timer foto, grid 3×3, galeri sesi dengan Simpan dan Bagikan
+- Filter warna dengan pratinjau langsung dan pengatur intensitas, berlaku di foto, video, dan Sinematik:
+  - **Leica:** Authentic, Vibrant, B&W High Contrast, B&W Natural
+  - **Fujifilm:** Classic Chrome, Classic Neg, Nostalgic Neg, Reala Ace, Velvia, Eterna, Acros
+  - **Canon:** Standard · **Sony:** FL Film, S-Cinetone · **Zeiss:** Natural, Vivid
+  - **iPhone 17 Pro:** Standar, Amber, Cool Rose
+
+  Filter ini meniru karakter warna merek tersebut; bukan profil resmi.
 
 ## Cara pakai
 
