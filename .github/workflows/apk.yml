@@ -47,9 +47,24 @@ jobs:
           curl -fsSL --retry 3 https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite -o "$W/mediapipe/selfie_segmenter.tflite"
           ls -laR "$W"
 
+      - name: Siapkan kunci penanda tangan dari GitHub Secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.KAMERA_V60_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secret KAMERA_V60_KEYSTORE belum diisi di Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          echo "KAMERA_KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+
       - name: Build APK
         working-directory: android
         run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Hapus kunci dari mesin build
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12"
 
       - name: Terbitkan APK di Releases
         env:

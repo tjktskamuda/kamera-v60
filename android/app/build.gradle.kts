@@ -17,13 +17,15 @@ android {
         versionName = "1.0.$runNumber"
     }
 
-    // Kunci penanda tangan tetap agar versi baru bisa dipasang menimpa versi lama.
+    // Kunci penanda tangan TIDAK disimpan di repositori. GitHub Actions menuliskannya dari
+    // secret KAMERA_V60_KEYSTORE ke file sementara saat build (lihat .github/workflows/apk.yml).
     signingConfigs {
         create("release") {
-            storeFile = file("kamera-v60.jks")
-            storePassword = "o3P4GU1XTNTm3i6y04o1Pyg5"
+            storeFile = file(System.getenv("KAMERA_KEYSTORE_FILE") ?: "release.p12")
+            storeType = "PKCS12"
+            storePassword = System.getenv("KAMERA_KEYSTORE_PASSWORD") ?: "kamerav60"
             keyAlias = "kamerav60"
-            keyPassword = "o3P4GU1XTNTm3i6y04o1Pyg5"
+            keyPassword = System.getenv("KAMERA_KEYSTORE_PASSWORD") ?: "kamerav60"
         }
     }
 
