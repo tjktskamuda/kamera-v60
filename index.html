@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Kamera V60</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%23ffcd3c' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffcd3c'/%3E%3C/svg%3E">
 <style>
 /* Kamera V60 — antarmuka viewfinder gelap, satu aksen kuning fokus, merah untuk rekam */
@@ -829,9 +831,11 @@ async function ensureSeg() {
     R.segIdx = 0;
     if (labels.length > 1) { const i = labels.findIndex(l => /person|selfie|foreground|human/i.test(l)); R.segIdx = i >= 0 ? i : labels.length - 1; }
     R.seg = seg; R.segReady = true;
+    cacheAI();
   } catch (e) {
     console.error(e);
-    toast('Model AI Sinematik gagal dimuat. Mode ini butuh internet saat pertama dibuka.', 4500);
+    toast(navigator.onLine === false ? 'Mode Sinematik belum tersimpan di HP. Buka mode ini sekali saat ada internet, setelah itu bisa dipakai offline.'
+      : 'Model AI Sinematik gagal dimuat. Periksa koneksi internet lalu buka ulang mode Sinematik.', 5000);
   } finally {
     R.segLoading = false; $('#cineLoad').hidden = true; updateShutter();
   }
@@ -1233,8 +1237,40 @@ function fillInfo() {
     ['EIS (gyro)', G.ok ? 'giroskop aktif' : 'giroskop belum terdeteksi'],
     ['Lensa terdeteksi', R.cams.length + ' kamera (' + R.cams.filter(c => c.facing !== 'front').length + ' belakang)'],
     ['Mode Sinematik', R.segReady ? `siap · AI ${Math.round(R.segMs)} ms/frame` : (R.segLoading ? 'memuat…' : 'belum dimuat')],
+    ['Tanpa internet', '<span id="offState">memeriksa…</span>'],
   ];
   $('#sInfo').innerHTML = rows.map(([k, v]) => `<div><b>${k}</b><span>${v}</span></div>`).join('');
+  offlineState().then(st => {
+    const el = $('#offState'); if (!el) return;
+    el.textContent = st === 'ai' ? 'siap, semua mode' : st === 'basic' ? 'siap untuk Foto & Video' : 'belum tersimpan';
+  });
+}
+
+/* ======================= Offline (PWA) ======================= */
+async function offlineState() {
+  if (!('caches' in window) || !navigator.serviceWorker || !navigator.serviceWorker.controller) return 'none';
+  try { return (await caches.match(SEG_MODEL)) ? 'ai' : 'basic'; } catch { return 'none'; }
+}
+function cacheAI() {
+  const c = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (c) c.postMessage('cache-ai');
+}
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => new Promise(res => {
+      if (navigator.serviceWorker.controller) return res();
+      navigator.serviceWorker.addEventListener('controllerchange', () => res(), { once: true });
+      setTimeout(res, 3000);
+    })).then(async () => {
+      const st = await offlineState();
+      if (st === 'none') return;
+      const prev = loadJSON('kv60off', null);
+      if (prev === st) return;
+      try { localStorage.setItem('kv60off', JSON.stringify(st)); } catch {}
+      toast(st === 'ai' ? 'Aplikasi sudah tersimpan di HP dan bisa dipakai tanpa internet, termasuk mode Sinematik.'
+                        : 'Foto dan Video sudah bisa dipakai tanpa internet. Buka mode Sinematik sekali saat online agar ikut tersimpan.', 5000);
+    }).catch(() => {});
+  });
 }
 function openSheet() {
   $('#sRes').value = S.res; $('#sEis').checked = !!S.eis; $('#sEisStr').value = S.eisStrength;

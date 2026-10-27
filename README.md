@@ -18,9 +18,13 @@ Aplikasi web kamera untuk **vivo V60 5G**, dibuka lewat Chrome di HP.
 2. Ketuk **Mulai kamera**, lalu izinkan kamera dan mikrofon.
 3. Agar terasa seperti aplikasi: menu ⋮ Chrome → **Tambahkan ke layar utama**.
 
+## Tanpa internet (offline)
+
+Buka alamat aplikasi sekali saat ada internet. Aplikasi dan model AI Sinematik otomatis tersimpan di HP, lalu muncul pemberitahuan bahwa aplikasi siap dipakai offline. Setelah itu buka lewat ikon di layar utama, dengan atau tanpa internet. Statusnya bisa dicek di ⚙ Pengaturan → Status kamera → Tanpa internet.
+
 ## Catatan
 
 - Kamera hanya bisa dipakai lewat alamat `https://` seperti GitHub Pages.
 - Lensa yang tidak dibuka vivo untuk browser diganti zoom dari lensa utama. Jika urutan lensa tertukar, perbaiki di ⚙ Pengaturan → Pemetaan lensa.
-- Mode Sinematik memakai model AI MediaPipe, dimuat dari internet saat pertama dibuka, dan direkam 1080p 30 fps.
+- Mode Sinematik memakai model AI MediaPipe (diunduh sekali, lalu disimpan untuk offline) dan direkam 1080p 30 fps.
 - Foto dan video diproses di HP; tidak ada yang dikirim ke server.
